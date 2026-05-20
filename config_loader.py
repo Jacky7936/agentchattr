@@ -12,6 +12,7 @@ isolated instances per project without editing the repo's config file.
   AGENTCHATTR_MCP_HTTP_PORT   → mcp.http_port         (int)
   AGENTCHATTR_MCP_SSE_PORT    → mcp.sse_port          (int)
   AGENTCHATTR_UPLOAD_DIR      → images.upload_dir
+  AGENTCHATTR_UI_PASSWORD     → security.ui_password
 
 Relative paths in env var overrides resolve against the current working
 directory (where the user invoked the command from), not agentchattr's
@@ -26,13 +27,14 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 
 
-# Mapping: env var name → (config section, key, is_int)
+# Mapping: env var name → (config section, key, kind)
 _ENV_OVERRIDES = [
-    ("AGENTCHATTR_DATA_DIR",      "server", "data_dir",   False),
-    ("AGENTCHATTR_PORT",          "server", "port",       True),
-    ("AGENTCHATTR_MCP_HTTP_PORT", "mcp",    "http_port",  True),
-    ("AGENTCHATTR_MCP_SSE_PORT",  "mcp",    "sse_port",   True),
-    ("AGENTCHATTR_UPLOAD_DIR",    "images", "upload_dir", False),
+    ("AGENTCHATTR_DATA_DIR",      "server",   "data_dir",    "path"),
+    ("AGENTCHATTR_PORT",          "server",   "port",        "int"),
+    ("AGENTCHATTR_MCP_HTTP_PORT", "mcp",      "http_port",   "int"),
+    ("AGENTCHATTR_MCP_SSE_PORT",  "mcp",      "sse_port",    "int"),
+    ("AGENTCHATTR_UPLOAD_DIR",    "images",   "upload_dir",  "path"),
+    ("AGENTCHATTR_UI_PASSWORD",   "security", "ui_password", "raw"),
 ]
 
 # Mapping: CLI flag → env var (for apply_cli_overrides)
@@ -80,23 +82,23 @@ def apply_cli_overrides(argv: list[str] | None = None) -> None:
 
 def _apply_env_overrides(config: dict) -> None:
     """Apply AGENTCHATTR_* env vars to the config dict in-place."""
-    for env_var, section, key, is_int in _ENV_OVERRIDES:
+    for env_var, section, key, kind in _ENV_OVERRIDES:
         raw = os.environ.get(env_var)
         if raw is None or raw == "":
             continue
-        if is_int:
+        if kind == "int":
             try:
                 value = int(raw)
             except ValueError:
                 print(f"  Warning: {env_var}={raw!r} is not a valid integer, ignoring")
                 continue
-        else:
-            # Path values: resolve relative paths against current working dir,
-            # not against agentchattr's install directory.
+        elif kind == "path":
             p = Path(raw)
             if not p.is_absolute():
                 p = (Path.cwd() / p).resolve()
             value = str(p)
+        else:
+            value = raw
         config.setdefault(section, {})[key] = value
 
 

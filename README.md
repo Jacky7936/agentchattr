@@ -451,6 +451,20 @@ http_port = 8200            # MCP streamable-http (Claude Code, Codex)
 sse_port = 8201             # MCP SSE transport (Gemini)
 ```
 
+Optional browser UI password gate:
+
+```bash
+AGENTCHATTR_UI_PASSWORD='choose-a-local-password' python run.py
+```
+
+If you use `macos-linux/start_all.sh`, the script creates a local `.env` with a random password the first time it runs. To choose your own password instead, edit `.env`:
+
+```bash
+AGENTCHATTR_UI_PASSWORD=choose-a-local-password
+```
+
+When this env var is set, new browsers must enter the password before the server injects the web UI session token into `/`, `/thread`, `/settings`, and the other browser UI pages. The unlock is stored in a session cookie named `agentchattr_ui_auth`, so closing the browser or opening a fresh browser profile requires the password again. Leave the env var unset or empty to keep the default no-password behavior.
+
 ### Per-project isolation
 
 If you keep one agentchattr install shared across several repos (e.g. via dotfiles), you can run an isolated instance per project without editing `config.toml` — override the data directory and ports at launch time.
@@ -480,6 +494,7 @@ python wrapper.py claude \
 - `AGENTCHATTR_MCP_HTTP_PORT` — overrides `mcp.http_port`
 - `AGENTCHATTR_MCP_SSE_PORT` — overrides `mcp.sse_port`
 - `AGENTCHATTR_UPLOAD_DIR` — overrides `images.upload_dir`
+- `AGENTCHATTR_UI_PASSWORD` — enables a browser UI password gate (`security.ui_password`)
 
 Relative paths resolve against the shell's current directory (not agentchattr's install location), so `./.agentchattr` ends up inside your project folder.
 
@@ -614,12 +629,15 @@ The chat server and web UI are fully cross-platform (Python + browser).
 agentchattr is designed for **localhost use only** and includes several protections:
 
 - **Session token** — a random token is generated on each server start and injected into the web UI. All API and WebSocket requests must present this token.
+- **Optional UI password gate** — set `AGENTCHATTR_UI_PASSWORD` to require a password before browser UI pages receive the session token. Successful unlocks use an `HttpOnly`, `SameSite=Lax` session cookie and expire when the browser session ends or the server restarts.
 - **Loopback-only registration** — agent registration, deregistration, and heartbeat endpoints only accept connections from localhost, preventing remote agent impersonation.
 - **Origin checking** — the server rejects requests from origins that don't match `localhost` / `127.0.0.1`, preventing cross-origin and DNS rebinding attacks.
 - **No `shell=True`** — subprocess calls avoid shell injection by passing argument lists directly.
 - **Network binding warning** — if the server is configured to bind to a non-localhost address, it refuses to start unless you explicitly pass `--allow-network`.
 
 The session token is displayed in the terminal on startup and is only accessible to processes on the same machine.
+
+The UI password gate is for local or trusted-LAN viewing control. In `--allow-network` mode agentchattr still serves plain HTTP, so anyone who can observe that network traffic may see the password or session cookie. Use it as a convenience lock, not as a substitute for HTTPS or a real multi-user authentication layer.
 
 > **`--allow-network` warning:** Network mode binds to a LAN IP, which exposes the server to your local network over unencrypted HTTP. Anyone on the same network can sniff the session token and gain full access — including the ability to @mention agents and trigger tool execution. If agents are running with auto-approve flags, this effectively grants remote code execution on your machine. **Only use `--allow-network` on a trusted home network. Never on public or shared WiFi.**
 

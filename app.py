@@ -167,11 +167,11 @@ def _resolve_authenticated_agent(request: Request) -> dict | None:
 # --- Security middleware ---
 # Paths that don't require the session token (public assets and same-origin
 # HTML shells that inject the session token before loading their runtime).
-_PUBLIC_PREFIXES = ("/", "/landing", "/search", "/files", "/notifications", "/thread", "/member", "/settings", "/sidebar", "/static/")
+_PUBLIC_PREFIXES = ("/", "/login", "/landing", "/search", "/files", "/notifications", "/thread", "/member", "/settings", "/sidebar", "/static/")
 
 
-def _install_security_middleware(token: str, cfg: dict):
-    """Add token validation and origin checking middleware to the app."""
+def install_security_middleware(target_app: FastAPI, token: str, cfg: dict):
+    """Add token validation and origin checking middleware to a FastAPI app."""
     import app as _self
     _self.session_token = token
     port = cfg.get("server", {}).get("port", 8300)
@@ -230,7 +230,12 @@ def _install_security_middleware(token: str, cfg: dict):
 
             return await call_next(request)
 
-    app.add_middleware(SecurityMiddleware)
+    target_app.add_middleware(SecurityMiddleware)
+
+
+def _install_security_middleware(token: str, cfg: dict):
+    """Add token validation and origin checking middleware to the main app."""
+    install_security_middleware(app, token, cfg)
 
 
 def configure(cfg: dict, session_token: str = ""):
