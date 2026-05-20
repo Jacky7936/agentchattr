@@ -209,8 +209,9 @@ async function checkForUpdate() {
 
         const label = data.state === 'upstream_update' ? 'Upstream update available' : 'Update available';
         pill.href = data.url || 'https://github.com/bcurts/agentchattr/releases';
-        pill.innerHTML = `<span>${label}</span><button class="update-dismiss" onclick="dismissUpdate(event, '${data.latest}')" title="Dismiss">&times;</button>`;
+        pill.innerHTML = `<span>${label}</span><button class="update-dismiss" onclick="dismissUpdate(event, '${data.latest}')" title="Dismiss" aria-label="Dismiss update">${lucideIcon('x')}</button>`;
         pill.classList.remove('hidden');
+        renderLucideIcons();
     } catch {
         // Silent fail -- version check should never block the UI
     }
@@ -250,6 +251,22 @@ window.applyTheme = applyTheme;
 window.loadTheme = loadTheme;
 window.toggleTheme = toggleTheme;
 
+function lucideIcon(name, className = 'icon') {
+    return `<span class="${className}" data-lucide="${name}" aria-hidden="true"></span>`;
+}
+
+function renderLucideIcons() {
+    if (!window.lucide || typeof window.lucide.createIcons !== 'function') return;
+    window.lucide.createIcons({
+        attrs: {
+            width: '1em',
+            height: '1em',
+            'stroke-width': '2',
+            'aria-hidden': 'true',
+        },
+    });
+}
+
 function init() {
     // Configure marked for chat-style rendering
     marked.setOptions({
@@ -272,6 +289,7 @@ function init() {
     Sessions.init();
     Channels.init();
     checkForUpdate();
+    renderLucideIcons();
 
     // Dismiss channel edit controls when clicking outside channel bar
     document.addEventListener('click', (e) => {
@@ -442,10 +460,17 @@ function connectWebSocket() {
             document.querySelectorAll('#messages .message').forEach(el => {
                 // Regular chat messages
                 const senderEl = el.querySelector('.msg-sender');
-                if (senderEl && senderEl.textContent === event.old_name) {
+                if (senderEl && (el.dataset.sender === event.old_name || senderEl.dataset.sender === event.old_name || senderEl.textContent === event.old_name)) {
 
-                    senderEl.textContent = event.new_name;
+                    el.dataset.sender = event.new_name;
+                    senderEl.dataset.sender = event.new_name;
+                    senderEl.textContent = getAgentDisplayName(event.new_name);
                     senderEl.style.color = newColor;
+                    const slug = el.querySelector('.agent-slug');
+                    if (slug) {
+                        slug.textContent = `@${event.new_name}`;
+                        slug.title = `@${event.new_name}`;
+                    }
                     // Update bubble accent color
                     const bubble = el.querySelector('.chat-bubble');
                     if (bubble) bubble.style.setProperty('--bubble-color', newColor);
@@ -686,6 +711,93 @@ function maybeInsertDateDivider(container, msg) {
 
 // --- Messages ---
 
+function titleizeAgentName(value) {
+    return String(value || '')
+        .replace(/[_-]+/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
+function getAgentDisplayName(sender) {
+    const raw = String(sender || '');
+    const lower = raw.toLowerCase();
+    const resolved = resolveAgent(lower);
+    if (resolved && agentConfig[resolved]?.label) return agentConfig[resolved].label;
+    if (resolved) return titleizeAgentName(resolved);
+
+    const base = lower.replace(/-\d+$/, '');
+    if (baseColors[base]?.label) {
+        const suffix = lower !== base ? raw.slice(base.length) : '';
+        return `${baseColors[base].label}${suffix}`;
+    }
+    return getSenderClass(raw) === 'agent' ? titleizeAgentName(raw) : raw;
+}
+
+function getAgentRoleFor(sender) {
+    const raw = String(sender || '');
+    const resolved = resolveAgent(raw.toLowerCase());
+    const role = _agentRoles[raw] || _agentRoles[raw.toLowerCase()] || (resolved ? _agentRoles[resolved] : '');
+    if (role) return role;
+    const label = getAgentDisplayName(raw).toLowerCase();
+    for (const roleName of ['planner', 'builder', 'reviewer', 'architect', 'designer', 'researcher']) {
+        if (label.includes(roleName)) return roleName;
+    }
+    return '';
+}
+
+function roleCssClass(role) {
+    return String(role || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unset';
+}
+
+function pinActionLabel(statusLabel) {
+    if (statusLabel === 'done?') return 'Mark done';
+    if (statusLabel === 'unpin') return 'Unpin message';
+    return 'Pin message';
+}
+
+function messageActionIcon(name) {
+    const icons = {
+        reply: 'reply',
+        pin: 'pin',
+        copy: 'copy',
+        job: 'clipboard-check',
+        delete: 'trash-2',
+    };
+    return icons[name] ? lucideIcon(icons[name]) : '';
+}
+
+function messageActionButton(className, title, onclick, iconName) {
+    const safeTitle = escapeHtml(title);
+    return `<button type="button" class="ma-btn ${className}" onclick="${onclick}" title="${safeTitle}" aria-label="${safeTitle}">${messageActionIcon(iconName)}<span class="sr-only">${safeTitle}</span></button>`;
+}
+
+function renderMessageActions(msgId, opts = {}) {
+    const includeTodo = opts.includeTodo !== false;
+    const includeCopy = opts.includeCopy !== false;
+    const includeJob = opts.includeJob !== false;
+    const statusLabel = opts.statusLabel || 'pin';
+    const actions = [
+        messageActionButton('reply-btn', 'Reply', `startReply(${msgId}, event)`, 'reply'),
+    ];
+
+    if (includeTodo) {
+        const pinLabel = pinActionLabel(statusLabel);
+        actions.push(messageActionButton('todo-hint', pinLabel, `todoCycle(${msgId}); event.stopPropagation();`, 'pin'));
+    }
+    if (includeCopy) {
+        actions.push(messageActionButton('copy-btn', 'Copy text', `copyMessage(${msgId}, event)`, 'copy'));
+    }
+    if (includeJob) {
+        actions.push(messageActionButton('job-btn', 'Convert to job', `startJobFromMessage(${msgId}); event.stopPropagation();`, 'job'));
+    }
+    actions.push('<span class="ma-sep" aria-hidden="true"></span>');
+    actions.push(messageActionButton('delete-btn danger', 'Delete message', `deleteClick(${msgId}, event)`, 'delete'));
+
+    return `<div class="msg-actions" role="toolbar" aria-label="Message actions">${actions.join('')}</div>`;
+}
+
 function appendMessage(msg) {
     const container = document.getElementById('messages');
 
@@ -695,6 +807,7 @@ function appendMessage(msg) {
     const el = document.createElement('div');
     el.className = 'message';
     el.dataset.id = msg.id;
+    el.dataset.sender = msg.sender || '';
     const msgChannel = msg.channel || 'general';
     el.dataset.channel = msgChannel;
 
@@ -735,7 +848,7 @@ function appendMessage(msg) {
                     <div class="proposal-status-resolved">${status === 'accepted' ? 'Accepted' : 'Dismissed'}</div>
                 `}
             </div>
-            ${!isPending ? `<div class="msg-actions"><button class="reply-btn" onclick="startReply(${msg.id}, event)">reply</button><button class="delete-btn" onclick="deleteClick(${msg.id}, event)" title="Delete">del</button></div>` : ''}`;
+            ${!isPending ? renderMessageActions(msg.id, { includeTodo: false, includeCopy: false, includeJob: false }) : ''}`;
     } else if (msg.type === 'rule_proposal') {
         el.classList.add('proposal-msg');
         const meta = msg.metadata || {};
@@ -760,7 +873,7 @@ function appendMessage(msg) {
                     <div class="proposal-status-resolved">${status === 'activated' ? 'Activated' : status === 'drafted' ? 'Added to drafts' : 'Dismissed'}</div>
                 `}
             </div>
-            ${!isPending ? `<div class="msg-actions"><button class="reply-btn" onclick="startReply(${msg.id}, event)">reply</button><button class="delete-btn" onclick="deleteClick(${msg.id}, event)" title="Delete">del</button></div>` : ''}`;
+            ${!isPending ? renderMessageActions(msg.id, { includeTodo: false, includeCopy: false, includeJob: false }) : ''}`;
     } else if (window._messageRenderers && window._messageRenderers[msg.type]) {
         window._messageRenderers[msg.type](el, msg);
     } else if (msg.type === 'system' || msg.sender === 'system') {
@@ -785,7 +898,9 @@ function appendMessage(msg) {
         let textHtml = styleHashtags(renderMarkdown(msg.text));
 
         const senderColor = getColor(msg.sender);
-        const isSelf = msg.sender.toLowerCase() === username.toLowerCase();
+        const senderLower = String(msg.sender || '').toLowerCase();
+        const usernameLower = String(username || '').toLowerCase();
+        const isSelf = senderLower === usernameLower || senderLower === 'user' || senderLower === 'jacky';
         el.classList.add(isSelf ? 'self' : 'other');
 
         let attachmentsHtml = '';
@@ -820,8 +935,12 @@ function appendMessage(msg) {
 
         const statusLabel = todoStatusLabel(todoStatus);
         el.dataset.rawText = msg.text;
-        const senderRole = _agentRoles[msg.sender] || '';
-        const roleClass = senderRole ? 'bubble-role has-role' : 'bubble-role';
+        const senderDisplayName = getAgentDisplayName(msg.sender);
+        const senderSlugHtml = !isSelf && senderDisplayName.toLowerCase() !== String(msg.sender).toLowerCase()
+            ? `<span class="agent-slug" title="@${escapeHtml(msg.sender)}">@${escapeHtml(msg.sender)}</span>`
+            : '';
+        const senderRole = getAgentRoleFor(msg.sender);
+        const roleClass = senderRole ? `bubble-role has-role role-${roleCssClass(senderRole)}` : 'bubble-role';
         const rolePillHtml = !isSelf ? `<button class="${roleClass}" onclick="showBubbleRolePicker(this, '${escapeHtml(msg.sender)}')" title="${senderRole ? escapeHtml(senderRole) : 'Set role'}">${senderRole || 'choose a role'}</button>` : '';
         // Inline decision choices (if present)
         let choicesHtml = '';
@@ -836,7 +955,7 @@ function appendMessage(msg) {
                 ).join('') + '</div>';
             }
         }
-        el.innerHTML = `<div class="todo-strip"></div>${isSelf ? '' : avatarHtml}<div class="chat-bubble" style="--bubble-color: ${senderColor}">${replyHtml}<div class="bubble-header"><span class="msg-sender" style="color: ${senderColor}">${escapeHtml(msg.sender)}</span>${rolePillHtml}<span class="msg-time">${msg.time || ''}</span></div><div class="msg-text">${textHtml}</div>${choicesHtml}${attachmentsHtml}<button class="convert-job-pill" onclick="startJobFromMessage(${msg.id}); event.stopPropagation();" title="Convert to job">convert to job</button><button class="bubble-copy" onclick="copyMessage(${msg.id}, event)" title="Copy message"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div><div class="msg-actions"><button class="reply-btn" onclick="startReply(${msg.id}, event)">reply</button><button class="todo-hint" onclick="todoCycle(${msg.id}); event.stopPropagation();">${statusLabel}</button><button class="delete-btn" onclick="deleteClick(${msg.id}, event)" title="Delete">del</button></div>`;
+        el.innerHTML = `<div class="todo-strip"></div>${isSelf ? '' : avatarHtml}<div class="chat-bubble" style="--bubble-color: ${senderColor}">${replyHtml}<div class="bubble-header"><span class="msg-sender" data-sender="${escapeHtml(msg.sender)}" style="color: ${senderColor}">${escapeHtml(senderDisplayName)}</span>${senderSlugHtml}${rolePillHtml}<span class="msg-time">${msg.time || ''}</span></div><div class="msg-text">${textHtml}</div>${choicesHtml}${attachmentsHtml}${renderMessageActions(msg.id, { statusLabel })}</div>`;
         if (todoStatus) el.classList.add('msg-todo', `msg-todo-${todoStatus}`);
         if (msg.metadata?.session_output) el.classList.add('session-output');
 
@@ -859,6 +978,7 @@ function appendMessage(msg) {
     }
 
     container.appendChild(el);
+    renderLucideIcons();
 
     // Collapse consecutive job_created messages into a group
     if (msg.type === 'job_created' && window._collapseJobBreadcrumbs) {
@@ -987,9 +1107,10 @@ function recolorMessages() {
     for (const el of msgs) {
         const sender = el.querySelector('.msg-sender');
         if (!sender) continue;
-        const name = sender.textContent.trim();
+        const name = el.dataset.sender || sender.dataset.sender || sender.textContent.trim();
         const color = getColor(name);
         sender.style.color = color;
+        sender.textContent = getAgentDisplayName(name);
         // Update bubble color
         const bubble = el.querySelector('.chat-bubble');
         if (bubble) bubble.style.setProperty('--bubble-color', color);
@@ -1030,7 +1151,7 @@ function updateAllHats() {
 
 // --- Hat drag-to-trash ---
 
-const TRASH_SVG = `<svg viewBox="0 0 20 20" fill="none" width="20" height="20"><rect x="4" y="6" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M3 6h14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M8 3h4v3H8z" stroke="currentColor" stroke-width="1.2"/><rect class="trash-lid" x="3" y="4.5" width="14" height="2" rx="0.5" fill="currentColor" style="transform-origin: 10px 5.5px"/></svg>`;
+const TRASH_SVG = lucideIcon('trash-2');
 
 let hatDragState = null;  // { agent, ghostEl, originRect, trashEl, wrapEl }
 
@@ -1063,6 +1184,7 @@ document.addEventListener('mousedown', (e) => {
     trash.className = 'hat-trash';
     trash.innerHTML = TRASH_SVG;
     wrap.appendChild(trash);
+    renderLucideIcons();
     // Force reflow then show
     trash.offsetHeight;
     trash.classList.add('visible');
@@ -1161,12 +1283,14 @@ function buildStatusPills() {
     container.innerHTML = '';
     for (const [name, cfg] of Object.entries(agentConfig)) {
         const pill = document.createElement('div');
-        pill.className = 'status-pill';
+        pill.className = 'status-pill agent-pill';
         if (cfg.state === 'pending') pill.classList.add('pending');
         pill.id = `status-${name}`;
-        pill.title = `@${name}`;  // Tooltip: canonical name for manual @-typing
+        const displayName = cfg.label || titleizeAgentName(name);
+        const role = getAgentRoleFor(name) || cfg.base || name;
+        pill.title = `${displayName} · @${name}`;
         pill.style.setProperty('--agent-color', colorOverrides[name] || cfg.color || '#4ade80');
-        pill.innerHTML = `<span class="status-dot"></span><span class="status-label">${escapeHtml(cfg.label || name)}</span>`;
+        pill.innerHTML = `<span class="status-avatar avatar agent-${name.replace(/[^a-z0-9-]/g, '')}" aria-hidden="true">${getAvatarSvg(name)}</span><span class="ap-stack"><span class="status-label ap-name">${escapeHtml(displayName)}</span><span class="status-role ap-role">${escapeHtml(role)}</span></span><span class="status-dot ${cfg.state === 'pending' ? 'working' : 'offline'}" aria-label="${cfg.state === 'pending' ? 'working' : 'offline'}"></span>`;
         // Left-click to toggle pill popover (rename + role + color)
         pill.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1181,7 +1305,9 @@ function buildStatusPills() {
         });
         container.appendChild(pill);
     }
+    container.scrollLeft = 0;
     enableDragScroll(container);
+    renderLucideIcons();
 }
 
 // --- Role presets (shared by pill popover + bubble picker) ---
@@ -1330,7 +1456,7 @@ function showPillPopover(pillEl, opts) {
     const customChipsHtml = (window.customRoles || [])
         .filter(r => r && !ROLE_PRESETS.some(p => p.label.toLowerCase() === r.toLowerCase()))
         .map(r =>
-            `<button class="role-preset-chip pill-role-chip pill-custom-chip ${currentRole === r.toLowerCase() ? 'active' : ''}" data-role="${escapeHtml(r)}"><span class="pill-custom-label">${escapeHtml(r)}</span><span class="pill-custom-trash"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V3h4v1M5 4v8.5h6V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="pill-custom-confirm"><span class="pill-confirm-yes">&#10003;</span><span class="pill-confirm-no">&#10005;</span></span></button>`
+            `<button class="role-preset-chip pill-role-chip pill-custom-chip ${currentRole === r.toLowerCase() ? 'active' : ''}" data-role="${escapeHtml(r)}"><span class="pill-custom-label">${escapeHtml(r)}</span><span class="pill-custom-trash">${lucideIcon('trash-2')}</span><span class="pill-custom-confirm"><span class="pill-confirm-yes">${lucideIcon('check')}</span><span class="pill-confirm-no">${lucideIcon('x')}</span></span></button>`
         ).join('');
 
     popover.innerHTML = `
@@ -1514,6 +1640,7 @@ function showPillPopover(pillEl, opts) {
     }
 
     document.body.appendChild(popover);
+    renderLucideIcons();
 
     if (pillEl) {
         const rect = pillEl.getBoundingClientRect();
@@ -1645,11 +1772,16 @@ function _syncBubbleRolePills(agentName) {
     document.querySelectorAll('.message').forEach(msg => {
         const senderEl = msg.querySelector('.msg-sender');
         const btn = msg.querySelector('.bubble-role');
-        if (!btn || !senderEl || senderEl.textContent !== agentName) return;
+        const rawSender = msg.dataset.sender || senderEl?.dataset.sender || senderEl?.textContent;
+        if (!btn || !senderEl || rawSender !== agentName) return;
         btn.textContent = pillText;
         btn.title = role || 'Set role';
-        btn.classList.toggle('has-role', !!role);
+        btn.className = `bubble-role${role ? ` has-role role-${roleCssClass(role)}` : ''}`;
     });
+
+    const statusPill = document.getElementById(`status-${agentName}`);
+    const roleEl = statusPill?.querySelector('.status-role');
+    if (roleEl) roleEl.textContent = role || agentConfig[agentName]?.base || agentName;
 }
 
 function _setRole(agentName, role) {
@@ -1716,16 +1848,30 @@ function updateStatus(data) {
         if (name === 'paused') continue;
         const pill = document.getElementById(`status-${name}`);
         if (!pill) continue;
+        const dot = pill.querySelector('.status-dot');
 
         pill.classList.remove('available', 'working', 'offline');
+        if (dot) dot.classList.remove('online', 'working', 'offline');
         // Pending pills keep their pending animation (set in buildStatusPills)
         if (!pill.classList.contains('pending')) {
             if (info.busy && info.available) {
                 pill.classList.add('working');
+                if (dot) {
+                    dot.classList.add('working');
+                    dot.setAttribute('aria-label', 'working');
+                }
             } else if (info.available) {
                 pill.classList.add('available');
+                if (dot) {
+                    dot.classList.add('online');
+                    dot.setAttribute('aria-label', 'online');
+                }
             } else {
                 pill.classList.add('offline');
+                if (dot) {
+                    dot.classList.add('offline');
+                    dot.setAttribute('aria-label', 'offline');
+                }
             }
         }
 
@@ -1736,6 +1882,8 @@ function updateStatus(data) {
         if (info.role !== undefined) {
             _agentRoles[name] = info.role;
             _syncBubbleRolePills(name);
+            const roleEl = pill.querySelector('.status-role');
+            if (roleEl) roleEl.textContent = info.role || agentConfig[name]?.base || name;
         }
     }
 }
@@ -1757,7 +1905,8 @@ let pendingChannelSwitch = null;
 
 function applySettings(data) {
     if (data.title) {
-        document.getElementById('room-title').textContent = data.title;
+        const roomTitle = document.getElementById('room-title');
+        if (roomTitle) roomTitle.textContent = data.title;
         document.title = data.title;
     }
     if (data.username) {
@@ -1857,13 +2006,14 @@ function clearChat() {
     confirmWrap.className = 'session-inline-confirm';
     confirmWrap.innerHTML = `
         <button class="session-inline-confirm-yes ch-confirm-yes" title="Confirm clear chat">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ${lucideIcon('check')}
         </button>
         <button class="session-inline-confirm-no ch-confirm-no" title="Cancel">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            ${lucideIcon('x')}
         </button>
     `;
     btn.parentElement.insertBefore(confirmWrap, btn);
+    renderLucideIcons();
 
     confirmWrap.querySelector('.ch-confirm-yes').onclick = (e) => {
         e.stopPropagation();
@@ -2549,7 +2699,7 @@ function copyMessage(msgId, event) {
     const html = msgText?.innerHTML || '';
     const markdown = el.dataset.rawText || msgText?.innerText || '';
     const done = () => {
-        const btn = el.querySelector('.bubble-copy');
+        const btn = el.querySelector('.copy-btn, .bubble-copy');
         if (btn) {
             btn.classList.add('copied');
             setTimeout(() => btn.classList.remove('copied'), 1500);
@@ -2570,7 +2720,8 @@ function startReply(msgId, event) {
     if (event) event.stopPropagation();
     const el = document.querySelector(`.message[data-id="${msgId}"]`);
     if (!el) return;
-    const sender = el.querySelector('.msg-sender')?.textContent?.trim() || '?';
+    const senderEl = el.querySelector('.msg-sender');
+    const sender = el.dataset.sender || senderEl?.dataset.sender || senderEl?.textContent?.trim() || '?';
     const text = el.dataset.rawText || el.querySelector('.msg-text')?.textContent || '';
     replyingTo = { id: msgId, sender, text };
     renderReplyPreview();
@@ -2607,7 +2758,8 @@ function renderReplyPreview() {
     }
     const truncated = replyingTo.text.length > 100 ? replyingTo.text.slice(0, 100) + '...' : replyingTo.text;
     const color = getColor(replyingTo.sender);
-    container.innerHTML = `<span class="reply-preview-label">replying to</span> <span style="color: ${color}; font-weight: 600">${escapeHtml(replyingTo.sender)}</span>: ${escapeHtml(truncated)} <button class="dismiss-btn reply-cancel" onclick="cancelReply()">&times;</button>`;
+    container.innerHTML = `<span class="reply-preview-label">replying to</span> <span style="color: ${color}; font-weight: 600">${escapeHtml(replyingTo.sender)}</span>: ${escapeHtml(truncated)} <button class="dismiss-btn reply-cancel" onclick="cancelReply()" aria-label="Cancel reply">${lucideIcon('x')}</button>`;
+    renderLucideIcons();
 }
 
 function cancelReply() {
@@ -2673,7 +2825,19 @@ function updateTodoState(msgId, status) {
     }
 
     const hint = el.querySelector('.todo-hint');
-    if (hint) hint.textContent = todoStatusLabel(status);
+    if (hint) {
+        const label = todoStatusLabel(status);
+        if (hint.classList.contains('ma-btn')) {
+            const actionLabel = pinActionLabel(label);
+            hint.title = actionLabel;
+            hint.setAttribute('aria-label', actionLabel);
+            hint.dataset.todoStatus = status || '';
+            const sr = hint.querySelector('.sr-only');
+            if (sr) sr.textContent = actionLabel;
+        } else {
+            hint.textContent = label;
+        }
+    }
 
     // Update panel if open
     const panel = document.getElementById('pins-panel');
@@ -2914,11 +3078,11 @@ function renderTodosPanel() {
         const text = el.querySelector('.msg-text')?.textContent || '';
         const senderColor = el.querySelector('.msg-sender')?.style.color || 'var(--text)';
 
-        const check = status === 'done' ? '&#10003;' : '&#9675;';
+        const check = status === 'done' ? lucideIcon('check') : lucideIcon('circle');
         const checkClass = status === 'done' ? 'todo-check done' : 'todo-check';
         const msgChannel = el.dataset.channel || 'general';
 
-        item.innerHTML = `<button class="${checkClass}" onclick="todoToggle(${id})">${check}</button><span class="msg-time" style="color:var(--accent);font-weight:600;margin-right:4px">#${msgChannel}</span> <span class="msg-time">${escapeHtml(time)}</span> <span class="msg-sender" style="color: ${senderColor}">${escapeHtml(sender)}</span> <span class="msg-text">${escapeHtml(text)}</span><button class="dismiss-btn danger" onclick="todoRemove(${id})" title="Remove from todos">&times;</button>`;
+        item.innerHTML = `<button class="${checkClass}" onclick="todoToggle(${id})">${check}</button><span class="msg-time" style="color:var(--accent);font-weight:600;margin-right:4px">#${msgChannel}</span> <span class="msg-time">${escapeHtml(time)}</span> <span class="msg-sender" style="color: ${senderColor}">${escapeHtml(sender)}</span> <span class="msg-text">${escapeHtml(text)}</span><button class="dismiss-btn danger" onclick="todoRemove(${id})" title="Remove from todos" aria-label="Remove from todos">${lucideIcon('x')}</button>`;
         item.addEventListener('click', (e) => {
             if (e.target.closest('button')) return;
             // Cross-channel pin: switch channel if needed
@@ -2931,6 +3095,7 @@ function renderTodosPanel() {
         });
         list.appendChild(item);
     }
+    renderLucideIcons();
 }
 
 // --- Mention toggles ---
@@ -2985,6 +3150,36 @@ function focusComposerInput() {
         input.focus();
     }
     return input;
+}
+
+function insertComposerToken(token, caretOffset = 0) {
+    const input = focusComposerInput();
+    if (!input) return;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    const before = input.value.slice(0, start);
+    const after = input.value.slice(end);
+    const needsSpace = before && !/\s$/.test(before) && !/^[\n`]/.test(token);
+    const insert = (needsSpace ? ' ' : '') + token;
+    input.value = before + insert + after;
+    const caret = before.length + insert.length + caretOffset;
+    input.setSelectionRange(Math.max(0, caret), Math.max(0, caret));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function insertComposerCodeBlock() {
+    insertComposerToken('```\n\n```', -4);
+}
+
+async function handleComposerFileSelect(fileInput) {
+    const files = Array.from(fileInput?.files || []);
+    for (const file of files) {
+        if (file.type.startsWith('image/')) {
+            await uploadImage(file);
+        }
+    }
+    if (fileInput) fileInput.value = '';
+    focusComposerInput();
 }
 
 function toggleVoice() {
@@ -3292,15 +3487,13 @@ function renderSchedulesBar() {
 
         const pauseBtn = document.createElement('button');
         pauseBtn.className = 'schedule-toggle-inline' + (isPaused ? ' paused' : '');
-        pauseBtn.innerHTML = isPaused
-            ? '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5 3l8 5-8 5V3z" fill="currentColor"/></svg>'
-            : '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="4" y="3" width="3" height="10" rx="0.5" fill="currentColor"/><rect x="9" y="3" width="3" height="10" rx="0.5" fill="currentColor"/></svg>';
+        pauseBtn.innerHTML = lucideIcon(isPaused ? 'play' : 'pause');
         pauseBtn.title = isPaused ? 'Resume' : 'Pause';
         pauseBtn.onclick = () => toggleSchedule(s.id);
 
         const trashBtn = document.createElement('button');
         trashBtn.className = 'schedule-delete-inline';
-        trashBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M5.5 4V3a1 1 0 011-1h3a1 1 0 011 1v1M6 7v5M10 7v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4 4l.5 9a1 1 0 001 1h5a1 1 0 001-1L12 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        trashBtn.innerHTML = lucideIcon('trash-2');
         trashBtn.title = 'Delete';
         trashBtn.onclick = () => deleteSchedule(s.id);
 
@@ -3339,19 +3532,20 @@ function renderSchedulesBar() {
 
         const toggleBtn = document.createElement('button');
         toggleBtn.className = 'schedule-toggle';
-        toggleBtn.textContent = s.active === false ? '▶' : '⏸';
+        toggleBtn.innerHTML = lucideIcon(s.active === false ? 'play' : 'pause');
         toggleBtn.title = s.active === false ? 'Resume' : 'Pause';
         toggleBtn.onclick = () => toggleSchedule(s.id);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'schedule-delete';
-        deleteBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4h10M5.5 4V3a1 1 0 011-1h3a1 1 0 011 1v1M6 7v5M10 7v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4 4l.5 9a1 1 0 001 1h5a1 1 0 001-1L12 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        deleteBtn.innerHTML = lucideIcon('trash-2');
         deleteBtn.title = 'Delete';
         deleteBtn.onclick = () => deleteSchedule(s.id);
 
         row.append(targets, prompt, interval, toggleBtn, deleteBtn);
         list.appendChild(row);
     }
+    renderLucideIcons();
 }
 
 function formatScheduleTime(ts) {
@@ -3721,7 +3915,7 @@ function _helpCardDefs() {
             '<div class="hg-mock-panel">' +
                 '<div class="hg-mock-panel-header">' +
                     '<span>Jobs sidebar</span>' +
-                    '<span class="hg-mock-panel-add">+</span>' +
+                    '<span class="hg-mock-panel-add">' + lucideIcon('plus') + '</span>' +
                 '</div>' +
                 '<div class="hg-mock-job-card">' +
                     '<span class="hg-mock-job-dot" style="background:#6a6a80"></span>' +
@@ -3746,7 +3940,7 @@ function _helpCardDefs() {
                 '<div class="hg-mock-panel-header">' +
                     '<span>Rules</span>' +
                     '<span class="hg-mock-panel-counter">2</span>' +
-                    '<span class="hg-mock-panel-add">+</span>' +
+                    '<span class="hg-mock-panel-add">' + lucideIcon('plus') + '</span>' +
                 '</div>' +
                 '<div class="hg-mock-rule-card">' +
                     '<span class="hg-mock-rule-dot draft"></span>' +
@@ -3775,7 +3969,7 @@ function _helpCardDefs() {
                 '<span class="hg-mock-ch active"># general</span>' +
                 '<span class="hg-mock-ch"># design</span>' +
                 '<span class="hg-mock-ch"># backend</span>' +
-                '<span class="hg-mock-ch-add">+</span>' +
+                '<span class="hg-mock-ch-add">' + lucideIcon('plus') + '</span>' +
             '</div>' +
             '<p class="hg-module-tip">Click <strong>+</strong> to create a new channel. Agents can be mentioned in any channel.</p>'
         },
@@ -3954,6 +4148,7 @@ function _openHelpAnchored(cardDefs) {
     overlay.appendChild(hint);
 
     document.body.appendChild(overlay);
+    renderLucideIcons();
 
     // Store refs for resize handler
     _helpCardEls = cardEls;
@@ -4075,7 +4270,7 @@ function _openHelpStacked(cardDefs) {
     header.innerHTML = '<span class="hg-modal-title">Guide</span>';
     var closeBtn = document.createElement('button');
     closeBtn.className = 'hg-modal-close';
-    closeBtn.innerHTML = '&times;';
+    closeBtn.innerHTML = lucideIcon('x');
     closeBtn.addEventListener('click', closeHelp);
     header.appendChild(closeBtn);
     content.appendChild(header);
@@ -4098,6 +4293,7 @@ function _openHelpStacked(cardDefs) {
     modal.appendChild(content);
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+    renderLucideIcons();
 
     _helpCardEls = [];
     _helpMode = 'stacked';
