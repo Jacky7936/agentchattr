@@ -29,6 +29,7 @@ class Instance:
     epoch: int = 1
     state: str = "pending"   # "pending" | "active"
     registered_at: float = field(default_factory=time.time)
+    profile_id: str = ""
 
 
 class RuntimeRegistry:
@@ -90,7 +91,14 @@ class RuntimeRegistry:
 
     # --- Registration ---
 
-    def register(self, base: str, label: str | None = None) -> dict | None:
+    def register(
+        self,
+        base: str,
+        label: str | None = None,
+        *,
+        requested_name: str | None = None,
+        profile_id: str = "",
+    ) -> dict | str | None:
         """Register a new instance of `base`. Returns slot info or None if unknown base.
 
         When a 2nd instance registers, slot 1 is renamed from 'base' to 'base-1'
@@ -101,6 +109,18 @@ class RuntimeRegistry:
                 return None
 
             self._expire_reserved()
+
+            if profile_id:
+                for inst in self._instances.values():
+                    if inst.profile_id == profile_id:
+                        return f"Profile already active: {profile_id}"
+
+            if requested_name:
+                if requested_name in self._instances:
+                    return f"Already registered: {requested_name}"
+                if (family_err := self._conflicts_with_other_family(requested_name, base)):
+                    return family_err
+                self._reserved.pop(requested_name, None)
 
             # Find next free slot
             taken = {i.slot for i in self._instances.values() if i.base == base}
@@ -118,7 +138,7 @@ class RuntimeRegistry:
             # so that no instance shares a name with the base family.  This prevents
             # a second instance from sending messages as "base" (identity theft).
             renamed_slot1 = None
-            if slot >= 2 and base in self._instances:
+            if not requested_name and slot >= 2 and base in self._instances:
                 slot1 = self._instances[base]
                 if slot1.base == base and slot1.slot == 1:
                     new_s1_name = f"{base}-1"
@@ -131,7 +151,7 @@ class RuntimeRegistry:
                     self._renames[base] = new_s1_name
                     renamed_slot1 = {"old": base, "new": new_s1_name}
 
-            name = base if slot == 1 else f"{base}-{slot}"
+            name = requested_name or (base if slot == 1 else f"{base}-{slot}")
             base_cfg = self._bases[base]
             color = _derive_color(base_cfg.get("color", "#888"), slot)
 
@@ -146,7 +166,15 @@ class RuntimeRegistry:
             # recovery/reclaim still uses chat_claim, but normal startup should
             # not block on a manual confirmation step.
             state = "active"
-            inst = Instance(name=name, base=base, slot=slot, label=lbl, color=color, state=state)
+            inst = Instance(
+                name=name,
+                base=base,
+                slot=slot,
+                label=lbl,
+                color=color,
+                state=state,
+                profile_id=profile_id,
+            )
             self._instances[name] = inst
             result = _inst_dict(inst, include_token=True)
             if renamed_slot1:
@@ -391,7 +419,13 @@ class RuntimeRegistry:
         """For WebSocket 'agents' message: {name: {color, label, base, state}}."""
         with self._lock:
             return {
-                n: {"color": i.color, "label": i.label, "base": i.base, "state": i.state}
+                n: {
+                    "color": i.color,
+                    "label": i.label,
+                    "base": i.base,
+                    "state": i.state,
+                    "profile_id": i.profile_id,
+                }
                 for n, i in self._instances.items()
             }
 
@@ -571,6 +605,7 @@ def _inst_dict(inst: Instance, include_token: bool = False) -> dict:
         "label": inst.label, "color": inst.color, "state": inst.state,
         "epoch": inst.epoch,
         "registered_at": inst.registered_at,
+        "profile_id": inst.profile_id,
     }
     if include_token:
         d["token"] = inst.token

@@ -134,6 +134,11 @@ Assign roles to agents to steer their behavior — Planner, Builder, Reviewer, R
 
 Set roles from two places: click a **status pill** in the header bar to open a popover with rename + role picker, or click the **role pill** in any message header. Choose from presets or type a custom role (max 20 characters). Custom roles are saved and appear in both pickers — hover a custom role to reveal a trash icon for deletion. Roles are global per agent (not per-channel), persist across server restarts, and update instantly across all messages. Clear a role by selecting "None".
 
+### Agent profiles
+Use fixed profiles when you want the same lineup to come back with the same names and roles every time. Launch a wrapper with `--profile codex-builder` and the server registers that instance as `@codex-builder`, restores its saved role, and rejects a second live wrapper trying to claim the same profile.
+
+Profiles are stored in `data/agent_profiles.json` as `profile_id -> {base, name, label, role}`. Clicking a status pill to rename an agent or changing its role updates the profile too. The bundled `macos-linux/start_all.sh` uses fixed profiles for `codex-planner`, `codex-builder`, `codex-reviewer`, `codex-architect`, `claude-designer`, `claude-reviewer`, and `claude-researcher`.
+
 ### Rules
 Rules set the working style for your agents. Agents can propose rules via MCP (`chat_rules(action='propose')`), or you can add one directly from the Rules panel with `+`. Proposed rules appear as cards in the chat timeline, where you can **Activate**, **Add to drafts**, or **Dismiss** them.
 
@@ -376,8 +381,11 @@ windows\start.bat
 # Terminal 2 — agent wrapper (any platform)
 python wrapper.py claude
 
+# Fixed profile — restores the same name + role on next launch
+python wrapper.py codex --profile codex-builder
+
 # With auto-approve (flags pass through after --)
-python wrapper.py claude -- --dangerously-skip-permissions
+python wrapper.py codex --profile codex-builder -- --dangerously-bypass-approvals-and-sandbox
 ```
 
 ### Configuration

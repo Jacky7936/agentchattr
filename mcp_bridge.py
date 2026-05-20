@@ -47,6 +47,9 @@ PRESENCE_TIMEOUT = 10  # ~2 missed heartbeats (5s interval) = offline
 # Roles — per-instance, persisted to roles.json
 _roles: dict[str, str] = {}  # agent_name → role string
 _ROLES_FILE: Path | None = None
+_ROLE_NAME_ALIASES = {
+    "codex-reviwer": "codex-reviewer",
+}
 
 # Cursor persistence — set by run.py to enable saving cursors across restarts
 _CURSORS_FILE: Path | None = None
@@ -461,6 +464,8 @@ def _load_roles():
         return
     try:
         _roles = json.loads(_ROLES_FILE.read_text("utf-8"))
+        if _apply_role_aliases():
+            _save_roles()
     except Exception:
         log.warning("Failed to load roles from %s", _ROLES_FILE)
 
@@ -476,6 +481,18 @@ def _save_roles():
         os.replace(tmp, _ROLES_FILE)
     except Exception:
         log.warning("Failed to save roles to %s", _ROLES_FILE)
+
+
+def _apply_role_aliases() -> bool:
+    changed = False
+    for old_name, new_name in _ROLE_NAME_ALIASES.items():
+        if old_name not in _roles:
+            continue
+        old_role = _roles.pop(old_name)
+        if new_name not in _roles:
+            _roles[new_name] = old_role
+        changed = True
+    return changed
 
 
 def set_role(name: str, role: str):
@@ -960,4 +977,3 @@ def run_http_server():
 def run_sse_server():
     """Block — run SSE MCP in a background thread."""
     mcp_sse.run(transport="sse")
-

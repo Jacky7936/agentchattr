@@ -22,6 +22,7 @@ from schedules import ScheduleStore, parse_schedule_spec
 from router import Router
 from agents import AgentTrigger
 from registry import RuntimeRegistry
+from agent_profiles import AgentProfileStore, normalize_profile_id
 from session_store import SessionStore, validate_session_template
 from session_engine import SessionEngine
 
@@ -38,6 +39,7 @@ schedules: ScheduleStore | None = None
 router: Router | None = None
 agents: AgentTrigger | None = None
 registry: RuntimeRegistry | None = None
+agent_profiles: AgentProfileStore | None = None
 session_store: SessionStore | None = None
 session_engine: SessionEngine | None = None
 config: dict = {}
@@ -230,7 +232,7 @@ def _install_security_middleware(token: str, cfg: dict):
 
 
 def configure(cfg: dict, session_token: str = ""):
-    global store, rules, summaries, jobs, schedules, router, agents, registry, session_store, session_engine, config
+    global store, rules, summaries, jobs, schedules, router, agents, registry, agent_profiles, session_store, session_engine, config
     config = cfg
     # --- Security: store the session token and install middleware ---
     _install_security_middleware(session_token, cfg)
@@ -277,6 +279,9 @@ def configure(cfg: dict, session_token: str = ""):
     registry = RuntimeRegistry(data_dir=data_dir)
     registry.seed(cfg.get("agents", {}))
     registry.on_change(_on_registry_change)
+
+    agent_profiles = AgentProfileStore(Path(data_dir) / "agent_profiles.json", cfg.get("agents", {}))
+    agent_profiles.bootstrap_from_roles(Path(data_dir) / "roles.json")
 
     # Router starts with base agent names (backward compat for direct MCP users),
     # registry.on_change updates it dynamically when instances register/deregister
@@ -1008,6 +1013,40 @@ def _on_registry_change():
         asyncio.run_coroutine_threadsafe(broadcast_status(), _event_loop)
 
 
+def _sync_profile_identity(old_name: str, new_name: str, label: str, inst: dict | None = None):
+    if not agent_profiles:
+        return
+    inst = inst or (registry.get_instance(new_name) if registry else None) or (registry.get_instance(old_name) if registry else None)
+    base = inst.get("base", "") if inst else agent_profiles.infer_base(new_name)
+    profile_id = inst.get("profile_id", "") if inst else ""
+    try:
+        import mcp_bridge
+        role = mcp_bridge.get_role(new_name) or mcp_bridge.get_role(old_name)
+    except Exception:
+        role = ""
+    agent_profiles.update_identity(
+        old_name=old_name,
+        new_name=new_name,
+        label=label,
+        base=base,
+        profile_id=profile_id,
+        role=role,
+    )
+
+
+def _sync_profile_role(agent_name: str, role: str):
+    if not agent_profiles:
+        return
+    inst = registry.get_instance(agent_name) if registry else None
+    agent_profiles.update_role_for_name(
+        agent_name,
+        role,
+        base=inst.get("base", "") if inst else "",
+        profile_id=inst.get("profile_id", "") if inst else "",
+        label=inst.get("label", "") if inst else "",
+    )
+
+
 # --- WebSocket ---
 
 @app.websocket("/ws")
@@ -1279,6 +1318,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 agent_name = (event.get("name") or "").strip()
                 new_label = (event.get("label") or "").strip()
                 if agent_name and new_label and registry:
+                    inst_before = registry.get_instance(agent_name)
                     # Derive a sanitized sender ID from the label
                     import re as _re
                     new_id = _re.sub(r'[^a-z0-9-]', '', new_label.lower().replace(' ', '-')).strip('-')
@@ -1287,15 +1327,18 @@ async def websocket_endpoint(websocket: WebSocket):
                     if new_id == agent_name:
                         # Same ID — label-only change
                         registry.set_label(agent_name, new_label)
+                        _sync_profile_identity(agent_name, agent_name, new_label, inst_before)
                     else:
                         result = registry.rename(agent_name, new_id, new_label)
                         if isinstance(result, str):
                             # Rename failed (collision etc.) — fall back to label-only
                             registry.set_label(agent_name, new_label)
+                            _sync_profile_identity(agent_name, agent_name, new_label, inst_before)
                         else:
                             # Migrate presence + cursors to new name
                             import mcp_bridge
                             mcp_bridge.migrate_identity(agent_name, new_id)
+                            _sync_profile_identity(agent_name, new_id, new_label, result)
                             # Update sender on all historical messages
                             store.rename_sender(agent_name, new_id)
                             # Notify clients so they can update sender in DOM
@@ -1312,9 +1355,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 agent_name = (event.get("name") or "").strip()
                 new_label = (event.get("label") or "").strip()
                 if agent_name and registry:
+                    inst_before = registry.get_instance(agent_name)
                     if not new_label:
                         # Accept default name
                         registry.confirm_pending(agent_name)
+                        _sync_profile_identity(agent_name, agent_name, agent_name, inst_before)
                     else:
                         import re as _re
                         new_id = _re.sub(r'[^a-z0-9-]', '', new_label.lower().replace(' ', '-')).strip('-')
@@ -1324,17 +1369,20 @@ async def websocket_endpoint(websocket: WebSocket):
                             # Same ID — just update label and confirm
                             registry.set_label(agent_name, new_label)
                             registry.confirm_pending(agent_name)
+                            _sync_profile_identity(agent_name, agent_name, new_label, inst_before)
                         else:
                             result = registry.rename(agent_name, new_id, new_label)
                             if isinstance(result, str):
                                 # Rename failed — just confirm with label
                                 registry.set_label(agent_name, new_label)
                                 registry.confirm_pending(agent_name)
+                                _sync_profile_identity(agent_name, agent_name, new_label, inst_before)
                             else:
                                 # Rename succeeded — confirm new name
                                 registry.confirm_pending(new_id)
                                 import mcp_bridge
                                 mcp_bridge.migrate_identity(agent_name, new_id)
+                                _sync_profile_identity(agent_name, new_id, new_label, result)
                                 # Update sender on all historical messages
                                 store.rename_sender(agent_name, new_id)
                                 rename_event = json.dumps({
@@ -2024,6 +2072,7 @@ async def set_agent_role(agent_name: str, request: Request):
         return JSONResponse({"error": "invalid json"}, status_code=400)
     role = body.get("role", "").strip()
     mcp_bridge.set_role(agent_name, role)
+    _sync_profile_role(agent_name, role)
     await broadcast_status()
     return JSONResponse({"ok": True, "role": role})
 
@@ -2086,15 +2135,30 @@ async def register_agent(request: Request):
         return JSONResponse({"error": "invalid JSON"}, status_code=400)
     base = body.get("base", "")
     label = body.get("label")
+    profile_id = normalize_profile_id(body.get("profile") or body.get("profile_id") or "")
     if not base:
         return JSONResponse({"error": "base is required"}, status_code=400)
-    result = registry.register(base, label)
+    profile = None
+    requested_name = None
+    if profile_id:
+        if not agent_profiles:
+            return JSONResponse({"error": "profiles not configured"}, status_code=500)
+        profile, profile_err = agent_profiles.ensure_profile(profile_id, base, label)
+        if profile_err:
+            return JSONResponse({"error": profile_err}, status_code=400)
+        requested_name = profile.get("name")
+        label = profile.get("label") or label
+    result = registry.register(base, label, requested_name=requested_name, profile_id=profile_id)
     if result is None:
         return JSONResponse({"error": f"unknown base: {base}"}, status_code=400)
+    if isinstance(result, str):
+        return JSONResponse({"error": result}, status_code=409)
     # Touch presence so the instance doesn't immediately time out
     import mcp_bridge
     with mcp_bridge._presence_lock:
         mcp_bridge._presence[result["name"]] = __import__("time").time()
+    if profile is not None:
+        mcp_bridge.set_role(result["name"], profile.get("role", ""))
     # If slot 1 was renamed (e.g. "claude" → "claude-1"), migrate state
     renamed = result.pop("_renamed_slot1", None)
     if renamed:
@@ -2165,6 +2229,8 @@ async def rename_agent_label(name: str, request: Request):
     if not label:
         return JSONResponse({"error": "label is required"}, status_code=400)
 
+    inst_before = registry.get_instance(name) if registry else None
+
     import re as _re
     new_id = _re.sub(r'[^a-z0-9-]', '', label.lower().replace(' ', '-')).strip('-')
     if not new_id:
@@ -2173,6 +2239,7 @@ async def rename_agent_label(name: str, request: Request):
     if new_id == name:
         # Same ID — label-only change
         if registry.set_label(name, label):
+            _sync_profile_identity(name, name, label, inst_before)
             return JSONResponse({"ok": True})
         return JSONResponse({"error": "not found"}, status_code=404)
 
@@ -2180,11 +2247,13 @@ async def rename_agent_label(name: str, request: Request):
     if isinstance(result, str):
         # Rename failed — try label-only as fallback
         if registry.set_label(name, label):
+            _sync_profile_identity(name, name, label, inst_before)
             return JSONResponse({"ok": True, "warning": result})
         return JSONResponse({"error": result}, status_code=400)
 
     import mcp_bridge
     mcp_bridge.migrate_identity(name, new_id)
+    _sync_profile_identity(name, new_id, label, result)
     # Update sender on all historical messages
     store.rename_sender(name, new_id)
     return JSONResponse({"ok": True, "new_name": new_id})
