@@ -121,6 +121,7 @@ class RuntimeRegistry:
                 if (family_err := self._conflicts_with_other_family(requested_name, base)):
                     return family_err
                 self._reserved.pop(requested_name, None)
+                self._clean_renames_for_locked(requested_name)
 
             # Find next free slot
             taken = {i.slot for i in self._instances.values() if i.base == base}
@@ -581,13 +582,15 @@ class RuntimeRegistry:
     def clean_renames_for(self, name: str):
         """Remove all rename chain entries pointing to or from `name`."""
         with self._lock:
-            # Remove entries where name is a key (old name → ...)
-            self._renames.pop(name, None)
-            # Remove entries where name is a value (... → name)
-            stale = [k for k, v in self._renames.items() if v == name]
-            for k in stale:
-                del self._renames[k]
+            self._clean_renames_for_locked(name)
         self._save_renames()
+
+    def _clean_renames_for_locked(self, name: str):
+        """Remove rename entries pointing to or from `name`. Must hold lock."""
+        self._renames.pop(name, None)
+        stale = [k for k, v in self._renames.items() if v == name]
+        for k in stale:
+            del self._renames[k]
 
     def _expire_reserved(self):
         """Remove expired reservations. Must hold lock."""

@@ -75,6 +75,38 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(restored["name"], "codex-builder")
             self.assertEqual(restored["profile_id"], "codex-builder")
 
+    def test_profile_registration_clears_stale_rename_redirects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            (data_dir / "renames.json").write_text(
+                json.dumps(
+                    {
+                        "codex-builder": "codex-reviewer",
+                        "codex-reviewer": "codex-architect",
+                        "codex-4": "codex-reviewer",
+                    }
+                ),
+                "utf-8",
+            )
+
+            registry = RuntimeRegistry(data_dir=str(data_dir))
+            registry.seed(AGENTS)
+            result = registry.register(
+                "codex",
+                "Codex Reviewer",
+                requested_name="codex-reviewer",
+                profile_id="codex-reviewer",
+            )
+
+            self.assertIsInstance(result, dict)
+            self.assertEqual(result["name"], "codex-reviewer")
+            self.assertEqual(registry.resolve_name("codex-reviewer"), "codex-reviewer")
+
+            renames = json.loads((data_dir / "renames.json").read_text("utf-8"))
+            self.assertNotIn("codex-reviewer", renames)
+            self.assertNotIn("codex-reviewer", renames.values())
+            self.assertEqual(renames, {})
+
     def test_role_and_rename_sync_keep_stable_profile_id(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = AgentProfileStore(Path(tmp) / "agent_profiles.json", AGENTS)
