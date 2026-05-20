@@ -38,6 +38,9 @@ is_server_running() {
 
 ensure_venv
 
+SERVER_URL="http://192.168.50.201:8300"
+SERVER_CMD="printf 'YES\\n' | .venv/bin/python run.py --allow-network"
+
 # Detect if running inside a CMux terminal session
 IS_CMUX=0
 CMUX_BIN="cmux"
@@ -100,13 +103,13 @@ start_agent() {
 # 1. 啟動伺服器 (若未運行)
 if ! is_server_running; then
     if [ "$IS_CMUX" -eq 1 ]; then
-        run_in_new_cmux_tab ".venv/bin/python run.py" "Server"
+        run_in_new_cmux_tab "$SERVER_CMD" "Server"
     else
         echo "Starting agentchattr server..."
         if [ "$(uname -s)" = "Darwin" ]; then
-            osascript -e "tell app \"Terminal\" to do script \"cd '$(pwd)' && .venv/bin/python run.py\"" > /dev/null 2>&1
+            osascript -e "tell app \"Terminal\" to do script \"cd '$(pwd)' && $SERVER_CMD\"" > /dev/null 2>&1
         else
-            .venv/bin/python run.py > data/server.log 2>&1 &
+            sh -c "$SERVER_CMD" > data/server.log 2>&1 &
         fi
     fi
 
@@ -134,14 +137,14 @@ start_agent ".venv/bin/python wrapper.py claude --profile claude-researcher" "Cl
 # 4. 自動開啟瀏覽器聊天介面
 echo "Opening browser to Chat UI..."
 if [ "$IS_CMUX" -eq 1 ]; then
-    "$CMUX_BIN" browser open "http://localhost:8300" --focus false >/dev/null 2>&1 || {
-        open http://localhost:8300 >/dev/null 2>&1
+    "$CMUX_BIN" browser open "$SERVER_URL" --focus false >/dev/null 2>&1 || {
+        open "$SERVER_URL" >/dev/null 2>&1
     }
 else
     if command -v open >/dev/null 2>&1; then
-        open http://localhost:8300
+        open "$SERVER_URL"
     elif command -v xdg-open >/dev/null 2>&1; then
-        xdg-open http://localhost:8300
+        xdg-open "$SERVER_URL"
     fi
 fi
 

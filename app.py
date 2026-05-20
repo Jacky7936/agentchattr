@@ -165,8 +165,9 @@ def _resolve_authenticated_agent(request: Request) -> dict | None:
 
 
 # --- Security middleware ---
-# Paths that don't require the session token (public assets).
-_PUBLIC_PREFIXES = ("/", "/static/")
+# Paths that don't require the session token (public assets and same-origin
+# HTML shells that inject the session token before loading their runtime).
+_PUBLIC_PREFIXES = ("/", "/landing", "/search", "/files", "/notifications", "/thread", "/member", "/settings", "/sidebar", "/static/")
 
 
 def _install_security_middleware(token: str, cfg: dict):
@@ -177,6 +178,7 @@ def _install_security_middleware(token: str, cfg: dict):
     allowed_origins = {
         f"http://127.0.0.1:{port}",
         f"http://localhost:{port}",
+        *cfg.get("server", {}).get("allowed_origins", []),
     }
 
     class SecurityMiddleware(BaseHTTPMiddleware):
@@ -186,7 +188,7 @@ def _install_security_middleware(token: str, cfg: dict):
             # Static assets, index page, and uploaded images are public.
             # The index page injects the token client-side via same-origin script.
             # Uploads use random filenames and have path-traversal protection.
-            if path == "/" or path.startswith(("/static/", "/uploads/", "/api/roles")):
+            if path in _PUBLIC_PREFIXES or path.startswith(("/static/", "/uploads/", "/api/roles")):
                 return await call_next(request)
 
             # Agent registration/heartbeat: loopback only (no remote agent minting).
