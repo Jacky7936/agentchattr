@@ -16,6 +16,7 @@ build/
 .idea/
 .gemini/
 .claude/
+.playwright-mcp/
 tests/
 agents_lineup.svg
 docs/
