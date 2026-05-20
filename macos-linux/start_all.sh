@@ -122,10 +122,10 @@ if ! is_server_running; then
 fi
 
 # 2. 在新終端機視窗中啟動 四個 Codex 實例 (Bypass 模式)
-start_agent ".venv/bin/python wrapper.py codex --profile codex-planner -- --dangerously-bypass-approvals-and-sandbox" "Codex Planner" "data/codex_planner.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-builder -- --dangerously-bypass-approvals-and-sandbox" "Codex Builder" "data/codex_builder.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-reviewer -- --dangerously-bypass-approvals-and-sandbox" "Codex Reviewer" "data/codex_reviewer.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-architect -- --dangerously-bypass-approvals-and-sandbox" "Codex Architect" "data/codex_architect.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-planner --dangerously-bypass-approvals-and-sandbox" "Codex Planner" "data/codex_planner.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-builder --dangerously-bypass-approvals-and-sandbox" "Codex Builder" "data/codex_builder.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-reviewer --dangerously-bypass-approvals-and-sandbox" "Codex Reviewer" "data/codex_reviewer.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-architect --dangerously-bypass-approvals-and-sandbox" "Codex Architect" "data/codex_architect.log"
 
 # 3. 在新終端機視窗中啟動 額外的 Claude 實例
 start_agent ".venv/bin/python wrapper.py claude --profile claude-reviewer" "Claude Reviewer" "data/claude_reviewer.log"

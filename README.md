@@ -384,8 +384,8 @@ python wrapper.py claude
 # Fixed profile — restores the same name + role on next launch
 python wrapper.py codex --profile codex-builder
 
-# With auto-approve (flags pass through after --)
-python wrapper.py codex --profile codex-builder -- --dangerously-bypass-approvals-and-sandbox
+# With auto-approve (provider flags pass through)
+python wrapper.py codex --profile codex-builder --dangerously-bypass-approvals-and-sandbox
 ```
 
 ### Configuration

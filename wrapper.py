@@ -360,10 +360,17 @@ def _build_provider_launch(
         token=token, mcp_cfg=mcp_cfg, project_dir=project_dir,
     )
 
-    launch_args = [*mcp_args, *extra_args]
+    launch_args = [*mcp_args, *_normalize_passthrough_args(extra_args)]
     launch_env = dict(env)
 
     return launch_args, launch_env, inject_env, settings_path
+
+
+def _normalize_passthrough_args(extra_args: list[str]) -> list[str]:
+    """Remove argparse's bare delimiter before forwarding provider args."""
+    if extra_args and extra_args[0] == "--":
+        return extra_args[1:]
+    return extra_args
 
 
 def _register_instance(server_port: int, base: str, label: str | None = None, profile: str = "") -> dict:
