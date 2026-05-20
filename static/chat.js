@@ -226,6 +226,30 @@ function dismissUpdate(e, version) {
 
 // --- Init ---
 
+// --- Theme (dark/light) ---
+function applyTheme(t) {
+    const theme = (t === 'light') ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('agentchattr-theme', theme); } catch (e) {}
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+        btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+        btn.title = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+    }
+}
+function loadTheme() {
+    let stored = 'dark';
+    try { stored = localStorage.getItem('agentchattr-theme') || 'dark'; } catch (e) {}
+    applyTheme(stored);
+}
+function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme');
+    applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+window.applyTheme = applyTheme;
+window.loadTheme = loadTheme;
+window.toggleTheme = toggleTheme;
+
 function init() {
     // Configure marked for chat-style rendering
     marked.setOptions({
@@ -233,6 +257,7 @@ function init() {
         gfm: true,         // GitHub-flavored markdown
     });
 
+    loadTheme();
     detectPlatform();
     fetchRoles();
     connectWebSocket();
@@ -788,9 +813,10 @@ function appendMessage(msg) {
         }
 
         const agentKey = (resolveAgent(msg.sender.toLowerCase()) || msg.sender).toLowerCase();
+        const agentCssKey = agentKey.replace(/[^a-z0-9-]/g, '');
         const hatSvg = agentHats[agentKey] || '';
         const hatHtml = hatSvg ? `<div class="hat-overlay" data-agent="${escapeHtml(agentKey)}">${hatSvg}</div>` : '';
-        const avatarHtml = `<div class="avatar-wrap" data-agent="${escapeHtml(agentKey)}"><div class="avatar" style="background-color: ${senderColor}">${getAvatarSvg(msg.sender)}</div>${hatHtml}</div>`;
+        const avatarHtml = `<div class="avatar-wrap" data-agent="${escapeHtml(agentKey)}"><div class="avatar agent-${agentCssKey}" style="background-color: ${senderColor}">${getAvatarSvg(msg.sender)}</div>${hatHtml}</div>`;
 
         const statusLabel = todoStatusLabel(todoStatus);
         el.dataset.rawText = msg.text;

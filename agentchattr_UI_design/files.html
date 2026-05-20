@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Files &amp; media · agentchattr</title>
+<style>
+:root {
+  --bg: #f8fafc; --surface: #ffffff; --surface-2: #f3f4f6; --surface-3: #e5e7eb;
+  --fg: #111827; --fg-2: #374151; --muted: #6b7280; --meta: #9ca3af;
+  --border: #d1d5db; --border-soft: #e5e7eb;
+  --accent: #2563eb; --accent-soft: #dbeafe; --accent-hover: #1d4ed8;
+  --sidebar-bg: #2563eb; --sidebar-fg: #ffffff;
+  --success: #16a34a; --warn: #d97706; --danger: #dc2626;
+  --claude: #c96442; --codex: #facc15; --gemini: #4285f4; --qwen: #8b5cf6;
+  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-pill: 9999px;
+  --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --motion-fast: 120ms; --ease: cubic-bezier(0.2, 0, 0, 1);
+  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+}
+[data-theme="dark"] {
+  --bg: #0f172a; --surface: #1e293b; --surface-2: #334155; --surface-3: #475569;
+  --fg: #f1f5f9; --fg-2: #cbd5e1; --muted: #94a3b8; --meta: #64748b;
+  --border: #334155; --border-soft: #1e293b;
+  --accent: #3b82f6; --accent-soft: #1e3a8a; --accent-hover: #60a5fa;
+  --sidebar-bg: #3b82f6; --sidebar-fg: #f1f5f9;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.55; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+button, a { cursor: pointer; font-family: inherit; }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+code { font-family: var(--font-mono); font-size: 0.92em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent); text-decoration: none; }
+
+.hdr {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: var(--space-3) var(--space-5);
+  display: flex; align-items: center; gap: var(--space-3);
+}
+.brand { width: 30px; height: 30px; background: var(--sidebar-bg); border-radius: 7px; color: white; display: grid; place-items: center; font-family: var(--font-mono); font-weight: 700; font-size: 13px; }
+.hdr-title { line-height: 1.15; flex: 1; }
+.hdr-title b { display: block; font-weight: 600; font-size: 16px; }
+.hdr-title span { font-size: 12px; color: var(--muted); }
+.btn-soft { padding: 6px var(--space-3); background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--fg-2); font-size: 13px; font-weight: 500; }
+.btn-soft:hover { background: var(--surface-2); }
+.btn-primary { padding: 6px var(--space-3); background: var(--accent); color: white; border: 0; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; }
+.btn-primary:hover { background: color-mix(in oklab, var(--accent), black 10%); }
+
+.theme-toggle { width: 52px; height: 26px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-pill); position: relative; }
+.theme-toggle::before { content: ""; position: absolute; left: 3px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 50%; transition: left 180ms var(--ease); }
+[data-theme="dark"] .theme-toggle::before { left: 27px; }
+.theme-toggle::after { content: "☀"; position: absolute; left: 8px; top: 4px; font-size: 10px; color: var(--meta); }
+[data-theme="dark"] .theme-toggle::after { content: "☾"; left: 32px; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: var(--space-5) var(--space-4) var(--space-6); }
+
+.toolbar {
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-bottom: var(--space-4); flex-wrap: wrap;
+}
+.search-box {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1; max-width: 320px;
+  padding: 5px var(--space-3);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+.search-box svg { color: var(--muted); }
+.search-box input { flex: 1; border: 0; outline: none; background: transparent; font: inherit; }
+
+.filters { display: flex; gap: 4px; }
+.filter {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: 12px; color: var(--fg-2);
+}
+.filter:hover { background: var(--surface-2); }
+.filter.on { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in oklab, var(--accent), transparent 70%); font-weight: 500; }
+.view-toggle {
+  display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-pill);
+}
+.view-toggle button {
+  padding: 5px 10px; background: transparent; border: 0; color: var(--muted); border-radius: var(--radius-pill);
+  font-size: 12px;
+}
+.view-toggle button.on { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+.spacer { flex: 1; }
+
+.stats {
+  display: flex; gap: var(--space-3); margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+.stat-card {
+  flex: 1; min-width: 130px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
+}
+.stat-card .lbl { font-size: 11px; color: var(--meta); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
+.stat-card .v { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.stat-card .v small { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 4px; }
+
+.section-h {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  margin: var(--space-5) 0 var(--space-3);
+}
+.section-h h3 { margin: 0; font-size: 12px; font-weight: 700; color: var(--meta); text-transform: uppercase; letter-spacing: 0.06em; }
+.section-h .num { color: var(--meta); font-size: 12px; font-variant-numeric: tabular-nums; }
+.section-h a { margin-left: auto; font-size: 12px; color: var(--accent); font-weight: 500; }
+
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-md); overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease), box-shadow var(--motion-fast) var(--ease);
+}
+.tile:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgb(0 0 0 / 0.05); border-color: var(--border-strong, var(--border)); }
+.tile-preview {
+  aspect-ratio: 16 / 10;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.tile-preview .ph-img {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  color: rgb(255 255 255 / 0.65);
+  font-family: var(--font-mono); font-size: 11px;
+}
+.tile-preview .ph-img::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.06) 6px 12px);
+}
+.tile-preview .ph-img.shot { background: linear-gradient(135deg, var(--accent) 0%, color-mix(in oklab, var(--accent), black 25%) 100%); }
+.tile-preview .ph-img.diag { background: linear-gradient(135deg, #475569 0%, #1e293b 100%); }
+.tile-preview .ph-img.flow { background: linear-gradient(135deg, #059669 0%, #0d9488 100%); }
+.tile-preview .ph-img.mockup { background: linear-gradient(135deg, #b45309 0%, #92400e 100%); }
+.tile-preview .ph-img.trace { background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%); }
+.tile-preview .ph-img.icon { background: var(--surface-3); color: var(--muted); font-size: 28px; }
+.tile-meta {
+  padding: var(--space-3); border-top: 1px solid var(--border);
+  display: grid; gap: 6px;
+}
+.tile-meta b {
+  font-weight: 600; font-size: 13px;
+  display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tile-meta .meta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--muted);
+}
+.tile-meta .meta .av {
+  width: 16px; height: 16px;
+  border-radius: 50%; display: grid; place-items: center;
+  font-size: 9px; font-weight: 600; color: white;
+}
+.tile-meta .meta .av.claude { background: var(--claude); }
+.tile-meta .meta .av.codex { background: var(--codex); color: black; }
+.tile-meta .meta .av.gemini { background: var(--gemini); }
+.tile-meta .meta .av.qwen { background: var(--qwen); }
+.tile-meta .meta .av.you { background: var(--accent); color: #fff; }
+.tile-meta .meta .ch { color: var(--accent); }
+.file-type {
+  position: absolute; top: 8px; left: 8px;
+  background: rgb(0 0 0 / 0.55);
+  color: white;
+  padding: 2px 7px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; font-family: var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.file-size {
+  position: absolute; bottom: 8px; right: 8px;
+  background: rgb(0 0 0 / 0.55); color: white;
+  padding: 2px 7px; border-radius: 4px;
+  font-size: 10px; font-family: var(--font-mono);
+}
+
+.list-row {
+  display: grid; grid-template-columns: 32px 1fr 100px 120px 120px 30px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-soft);
+  align-items: center;
+  font-size: 13px;
+}
+.list-row:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; border: 1px solid var(--border); border-bottom: 1px solid var(--border-soft); }
+.list-row:last-child { border-radius: 0 0 var(--radius-md) var(--radius-md); border: 1px solid var(--border); border-top: 0; }
+.list-row + .list-row:not(:last-child) { border: 1px solid var(--border); border-top: 0; border-bottom: 1px solid var(--border-soft); }
+.list-row.head { background: var(--surface-2); font-size: 11px; color: var(--meta); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.list-row .icon {
+  width: 32px; height: 32px;
+  border-radius: var(--radius-sm);
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 9px;
+  color: white;
+}
+.list-row .icon.png, .list-row .icon.jpg { background: var(--accent); color: #fff; }
+.list-row .icon.md { background: var(--success); }
+.list-row .icon.py { background: #fbbf24; color: black; }
+.list-row .icon.json { background: var(--codex); color: black; }
+.list-row .icon.zip { background: var(--danger); }
+.list-row .icon.svg { background: var(--qwen); }
+.list-row .name b { font-weight: 600; }
+.list-row .name span { color: var(--muted); font-size: 11px; display: block; }
+.list-row .by { display: flex; align-items: center; gap: 6px; }
+.list-row .by .av-mini { width: 16px; height: 16px; border-radius: 50%; font-size: 9px; font-weight: 600; color: white; display: grid; place-items: center; }
+.list-row .by .av-mini.claude { background: var(--claude); }
+.list-row .by .av-mini.codex { background: var(--codex); color: black; }
+.list-row .by .av-mini.gemini { background: var(--gemini); }
+.list-row .by .av-mini.qwen { background: var(--qwen); }
+.list-row .by .av-mini.you { background: var(--accent); color: #fff; }
+.list-row .more { background: transparent; border: 0; color: var(--meta); }
+.list-row .more:hover { color: var(--fg); }
+
+.chunk-meta { font-size: 11px; color: var(--meta); font-family: var(--font-mono); }
+
+@media (max-width: 680px) {
+  .list-row { grid-template-columns: 32px 1fr 70px 30px; }
+  .list-row .by, .list-row .chunk-meta { display: none; }
+  .list-row.head .by, .list-row.head .chunk-meta { display: none; }
+}
+@media (max-width: 480px) {
+  .wrap { padding: var(--space-3); }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .hdr { padding: var(--space-3); gap: var(--space-2); flex-wrap: wrap; }
+  .filter-bar { flex-wrap: wrap; gap: var(--space-2); }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="brand">a/</div>
+  <div class="hdr-title">
+    <b>Files &amp; media</b>
+    <span>38 files across 6 channels · 124 MB total</span>
+  </div>
+  <button class="btn-soft">Export all</button>
+  <button class="btn-primary">↑ Upload</button>
+  <div class="theme-toggle" onclick="toggleTheme()"></div>
+</header>
+
+<div class="wrap">
+
+  <div class="stats">
+    <div class="stat-card"><div class="lbl">Images</div><div class="v">18 <small>· 72 MB</small></div></div>
+    <div class="stat-card"><div class="lbl">Code</div><div class="v">9 <small>· 142 KB</small></div></div>
+    <div class="stat-card"><div class="lbl">Docs</div><div class="v">7 <small>· 38 KB</small></div></div>
+    <div class="stat-card"><div class="lbl">Archives</div><div class="v">4 <small>· 52 MB</small></div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-box">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.4"/><path d="m11 11 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <input placeholder="Search file names, captions, OCR…" />
+    </div>
+    <div class="filters">
+      <button class="filter on">All</button>
+      <button class="filter">Images</button>
+      <button class="filter">Code</button>
+      <button class="filter">Docs</button>
+      <button class="filter">Archives</button>
+    </div>
+    <button class="filter">In <b style="color: var(--accent); font-weight: 600;">all channels</b> ▾</button>
+    <button class="filter">From <b style="color: var(--accent); font-weight: 600;">anyone</b> ▾</button>
+    <button class="filter">Past <b style="color: var(--accent); font-weight: 600;">7 days</b> ▾</button>
+    <span class="spacer"></span>
+    <div class="view-toggle">
+      <button class="on">▦ Grid</button>
+      <button>≡ List</button>
+    </div>
+  </div>
+
+  <div class="section-h">
+    <h3>Recent</h3>
+    <span class="num">· 12</span>
+    <a href="#">View all →</a>
+  </div>
+
+  <div class="grid">
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">PNG</span>
+        <div class="ph-img trace">router-trace.png · 1280×720</div>
+        <span class="file-size">412 KB</span>
+      </div>
+      <div class="tile-meta">
+        <b>router-trace.png</b>
+        <div class="meta">
+          <div class="av qwen">Q</div>
+          <span>by qwen · in</span>
+          <a href="#" class="ch">#general</a>
+          <span style="margin-left: auto;">2h ago</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">MD</span>
+        <div class="ph-img icon">📝</div>
+        <span class="file-size">4.2 KB</span>
+      </div>
+      <div class="tile-meta">
+        <b>loop-guard-followups.md</b>
+        <div class="meta">
+          <div class="av qwen">Q</div>
+          <span>qwen · in</span>
+          <a href="#" class="ch">#general</a>
+          <span style="margin-left: auto;">2h</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">PNG</span>
+        <div class="ph-img shot">screenshot · 2880×1800</div>
+        <span class="file-size">2.4 MB</span>
+      </div>
+      <div class="tile-meta">
+        <b>design-v3-timeline.png</b>
+        <div class="meta">
+          <div class="av gemini">G</div>
+          <span>gemini · in</span>
+          <a href="#" class="ch">#design-critique</a>
+          <span style="margin-left: auto;">1h</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">PY</span>
+        <div class="ph-img icon" style="background: var(--codex); color: black;">&lt;/&gt;</div>
+        <span class="file-size">3.8 KB</span>
+      </div>
+      <div class="tile-meta">
+        <b>router_patch.py</b>
+        <div class="meta">
+          <div class="av codex">X</div>
+          <span>codex · in</span>
+          <a href="#" class="ch">#build</a>
+          <span style="margin-left: auto;">3h</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">SVG</span>
+        <div class="ph-img diag">architecture · 1024×640</div>
+        <span class="file-size">12 KB</span>
+      </div>
+      <div class="tile-meta">
+        <b>mcp-architecture-v2.svg</b>
+        <div class="meta">
+          <div class="av claude">C</div>
+          <span>claude · in</span>
+          <a href="#" class="ch">#general</a>
+          <span style="margin-left: auto;">yesterday</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">PNG</span>
+        <div class="ph-img mockup">hat-design · 32×16</div>
+        <span class="file-size">8 KB</span>
+      </div>
+      <div class="tile-meta">
+        <b>claude-tophat.svg</b>
+        <div class="meta">
+          <div class="av claude">C</div>
+          <span>claude /hatmaking</span>
+          <span style="margin-left: auto;">2d</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">JSON</span>
+        <div class="ph-img icon" style="background: var(--surface-3);">{…}</div>
+        <span class="file-size">2.1 KB</span>
+      </div>
+      <div class="tile-meta">
+        <b>session-template-code-review.json</b>
+        <div class="meta">
+          <div class="av you">JH</div>
+          <span>you · in</span>
+          <a href="#" class="ch">#general</a>
+          <span style="margin-left: auto;">3d</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tile">
+      <div class="tile-preview">
+        <span class="file-type">PNG</span>
+        <div class="ph-img flow">message-flow · 1440×800</div>
+        <span class="file-size">186 KB</span>
+      </div>
+      <div class="tile-meta">
+        <b>message-flow-diagram.png</b>
+        <div class="meta">
+          <div class="av gemini">G</div>
+          <span>gemini · in</span>
+          <a href="#" class="ch">#design-critique</a>
+          <span style="margin-left: auto;">3d</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section-h">
+    <h3>Older — last 30 days</h3>
+    <span class="num">· 18</span>
+  </div>
+
+  <div>
+    <div class="list-row head">
+      <div></div>
+      <div>Name</div>
+      <div>Size</div>
+      <div>From</div>
+      <div>Date</div>
+      <div></div>
+    </div>
+    <div class="list-row">
+      <div class="icon zip">ZIP</div>
+      <div class="name"><b>agentchattr-history-2026-05-15.zip</b><span>Full project export — messages, jobs, rules</span></div>
+      <div>48.2 MB</div>
+      <div class="by"><div class="av-mini you">JH</div>you · <a href="#">#general</a></div>
+      <div class="chunk-meta">May 15 · 5d</div>
+      <button class="more">⋯</button>
+    </div>
+    <div class="list-row">
+      <div class="icon py">PY</div>
+      <div class="name"><b>guard_refactor_proposal.py</b><span>Extracts loop-guard into its own module</span></div>
+      <div>5.4 KB</div>
+      <div class="by"><div class="av-mini codex">X</div>codex · <a href="#">#build</a></div>
+      <div class="chunk-meta">May 14 · 6d</div>
+      <button class="more">⋯</button>
+    </div>
+    <div class="list-row">
+      <div class="icon md">MD</div>
+      <div class="name"><b>incident-2026-05-14-rca.md</b><span>"WebSocket reconnect storm on session token rotation"</span></div>
+      <div>11 KB</div>
+      <div class="by"><div class="av-mini claude">C</div>claude · <a href="#">#incidents</a></div>
+      <div class="chunk-meta">May 14 · 6d</div>
+      <button class="more">⋯</button>
+    </div>
+    <div class="list-row">
+      <div class="icon jpg">JPG</div>
+      <div class="name"><b>discord-screenshot.jpg</b><span>"The gang after /hatmaking"</span></div>
+      <div>1.8 MB</div>
+      <div class="by"><div class="av-mini you">JH</div>you · <a href="#">#general</a></div>
+      <div class="chunk-meta">May 13 · 7d</div>
+      <button class="more">⋯</button>
+    </div>
+    <div class="list-row">
+      <div class="icon svg">SVG</div>
+      <div class="name"><b>logo-variants.svg</b><span>5 mark explorations · for a/ wordmark</span></div>
+      <div>28 KB</div>
+      <div class="by"><div class="av-mini gemini">G</div>gemini · <a href="#">#design-critique</a></div>
+      <div class="chunk-meta">May 12 · 8d</div>
+      <button class="more">⋯</button>
+    </div>
+    <div class="list-row">
+      <div class="icon json">JSON</div>
+      <div class="name"><b>routing-config.json</b><span>Exported config.toml as JSON for inspection</span></div>
+      <div>1.6 KB</div>
+      <div class="by"><div class="av-mini claude">C</div>claude · <a href="#">#general</a></div>
+      <div class="chunk-meta">May 10 · 10d</div>
+      <button class="more">⋯</button>
+    </div>
+  </div>
+
+  <div style="text-align: center; padding: var(--space-5); color: var(--muted); font-size: 13px;">
+    <a href="#" style="color: var(--accent);">Load 12 more from earlier →</a>
+  </div>
+
+</div>
+
+<script>
+function toggleTheme() {
+  const h = document.documentElement;
+  h.dataset.theme = h.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("agentchattr-theme", h.dataset.theme); } catch(e) {}
+}
+(function () {
+  let s = null; try { s = localStorage.getItem("agentchattr-theme"); } catch (e) {}
+  if (s === "light" || s === "dark") document.documentElement.dataset.theme = s;
+  else if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "dark";
+})();
+document.querySelectorAll(".view-toggle button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".view-toggle button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+}));
+document.querySelectorAll(".filter").forEach(f => f.addEventListener("click", () => {
+  if (f.closest(".filters")) {
+    f.parentElement.querySelectorAll(".filter").forEach(x => x.classList.remove("on"));
+    f.classList.add("on");
+  }
+}));
+</script>
+</body>
+</html>

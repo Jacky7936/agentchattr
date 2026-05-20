@@ -15,7 +15,7 @@
 #session-bar.hidden { display: none; }
 
 #session-bar.session-elsewhere {
-    background: linear-gradient(90deg, #161624 0%, #1b1b2b 100%);
+    background: linear-gradient(90deg, var(--surface) 0%, var(--surface-2) 100%);
     border-bottom-color: var(--border-strong);
 }
 
@@ -54,8 +54,8 @@
 
 .session-jump-btn {
     background: none;
-    border: 1px solid rgba(124, 156, 255, 0.25);
-    color: #a8b7ff;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    color: var(--accent-hover);
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
     padding: 3px var(--space-md);
@@ -66,8 +66,8 @@
 }
 
 .session-jump-btn:hover {
-    background: rgba(124, 156, 255, 0.12);
-    border-color: #7c9cff;
+    background: rgba(59, 130, 246, 0.12);
+    border-color: var(--accent);
 }
 
 .session-end-btn {
@@ -279,7 +279,7 @@
     border-radius: var(--radius-full);
     border: 1px solid rgba(248, 113, 113, 0.35);
     background: rgba(248, 113, 113, 0.08);
-    color: #fca5a5;
+    color: var(--danger);
     cursor: pointer;
 }
 
@@ -303,7 +303,7 @@
     border-radius: var(--radius-sm);
     background: var(--accent-soft);
     color: var(--accent);
-    border: 1px solid rgba(124, 58, 237, 0.25);
+    border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
 /* Session banners in timeline */
@@ -315,8 +315,8 @@
 }
 
 .session-banner-start {
-    background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.08), transparent);
-    border: 1px solid rgba(124, 58, 237, 0.19);
+    background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.08), transparent);
+    border: 1px solid rgba(59, 130, 246, 0.19);
 }
 
 .session-banner-end {
@@ -434,8 +434,8 @@
 .session-start-btn:hover { opacity: 0.85; }
 
 .session-banner-phase {
-    background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.03), transparent);
-    border: 1px dashed rgba(124, 58, 237, 0.15);
+    background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.03), transparent);
+    border: 1px dashed rgba(59, 130, 246, 0.15);
     font-size: var(--fs-sm);
     color: var(--text-dim);
 }
@@ -443,7 +443,7 @@
 /* Output highlighting */
 .session-output {
     border-left: 3px solid var(--accent);
-    background: rgba(124, 58, 237, 0.03);
+    background: rgba(59, 130, 246, 0.03);
 }
 
 .session-output-flash {
@@ -452,7 +452,7 @@
 
 @keyframes session-output-pulse {
     0% { background: var(--accent-hover); }
-    100% { background: rgba(124, 58, 237, 0.03); }
+    100% { background: rgba(59, 130, 246, 0.03); }
 }
 
 .session-output-link {
@@ -546,9 +546,9 @@
 }
 
 .session-draft-btn-save.saved {
-    background: rgba(124, 58, 237, 0.14);
+    background: rgba(59, 130, 246, 0.14);
     color: var(--accent);
-    border-color: rgba(124, 58, 237, 0.35);
+    border-color: rgba(59, 130, 246, 0.35);
     cursor: default;
 }
 

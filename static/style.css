@@ -1,49 +1,91 @@
-/* agentchattr — dark theme / design tokens */
+/* agentchattr — design tokens (dark default, light via [data-theme="light"]) */
 
 :root {
-    /* --- Surfaces --- */
-    --bg: #0f0f17;
-    --bg-header: #14141f;
-    --bg-input: #1a1a2e;
-    --bg-msg: #16161f;
-    --bg-msg-hover: #1c1c2a;
-    --bg-elevated: #1e1435;
+    /* ───── Surfaces (new design palette) ───── */
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-2: #334155;
+    --surface-3: #475569;
+
+    /* Legacy surface aliases — mapped to new design palette */
+    --bg-header: var(--surface);
+    --bg-input: var(--surface-2);
+    --bg-msg: var(--surface);
+    --bg-msg-hover: var(--surface-2);
+    --bg-elevated: var(--surface-3);
     --bg-subtle: rgba(255, 255, 255, 0.04);
     --bg-overlay: rgba(0, 0, 0, 0.5);
 
-    /* --- Borders --- */
-    --border: #2a2a3e;
-    --border-strong: #3a3a55;
+    /* ───── Foreground / Text ───── */
+    --fg: #f1f5f9;
+    --fg-2: #cbd5e1;
+    --muted: #94a3b8;
+    --meta: #64748b;
+
+    /* Legacy text aliases */
+    --text: var(--fg);
+    --text-dim: var(--muted);
+    --text-system: var(--meta);
+    --text-on-accent: #ffffff;
+    --text-muted: var(--fg-2);
+
+    /* ───── Borders ───── */
+    --border: #334155;
+    --border-soft: #1e293b;
+    --border-strong: #475569;
     --border-subtle: rgba(255, 255, 255, 0.06);
 
-    /* --- Text --- */
-    --text: #b8b8c8;
-    --text-dim: #6a6a80;
-    --text-system: #555570;
-    --text-on-accent: #fff;
-    --text-muted: #cfc8ea;
+    /* ───── Accent (new design blue) ───── */
+    --accent: #3b82f6;
+    --accent-soft: #1e3a8a;
+    --accent-on: #ffffff;
+    --accent-hover: #60a5fa;
+    --accent-active: #2563eb;
 
-    /* --- Semantic colors --- */
-    --accent: #7c3aed;
-    --accent-soft: rgba(124, 58, 237, 0.15);
-    --accent-hover: rgba(124, 58, 237, 0.2);
-    --user-color: #a78bfa;
-    --system-color: #555570;
+    /* Legacy semantic */
+    --user-color: var(--accent);
+    --system-color: var(--meta);
 
-    --success: #34d399;
-    --success-soft: rgba(52, 211, 153, 0.2);
-    --online: #4ade80;
+    /* ───── Sidebar (dedicated surface tokens) ───── */
+    --sidebar-bg: #0f172a;
+    --sidebar-bg-2: #0a1020;
+    --sidebar-fg: #f1f5f9;
+    --sidebar-muted: #94a3b8;
+    --sidebar-hover: #1e293b;
+    --sidebar-active-bg: #1e3a8a;
+    --sidebar-active-fg: #93c5fd;
+    --sidebar-border: #1e293b;
+
+    /* ───── Semantic ───── */
+    --success: #22c55e;
+    --success-soft: #14532d;
+    --online: var(--success);
+
+    --warn: #f59e0b;
+    --warn-soft: #451a03;
+    --warning: var(--warn);
 
     --danger: #ef4444;
-    --danger-soft: rgba(239, 68, 68, 0.1);
-    --error-color: #f87171;
-    --error-soft: rgba(248, 113, 113, 0.15);
+    --danger-soft: #450a0a;
+    --error-color: var(--danger);
+    --error-soft: var(--danger-soft);
 
-    --warning: #fbbf24;
-    --pending: #da7756;
+    --pending: #c96442;     /* claude orange */
     --info: #60a5fa;
 
-    /* --- Neutral tints (white alpha for dark theme) --- */
+    /* ───── Agent brand colors ───── */
+    --claude: #c96442;
+    --codex: #facc15;
+    --gemini: #4285f4;
+    --copilot: #6e7681;
+    --kimi: #1783ff;
+    --qwen: #8b5cf6;
+    --kilo: #d6c81b;
+    --codebuddy: #ff5e62;
+    --minimax: #2fe898;
+    --human: #3b82f6;
+
+    /* ───── Neutral tints (white alpha for dark theme) ───── */
     --white-02: rgba(255, 255, 255, 0.02);
     --white-03: rgba(255, 255, 255, 0.03);
     --white-06: rgba(255, 255, 255, 0.06);
@@ -52,24 +94,23 @@
     --white-12: rgba(255, 255, 255, 0.12);
     --white-15: rgba(255, 255, 255, 0.15);
 
-    /* --- Space --- */
-    --space-xs: 4px;
-    --space-sm: 8px;
-    --space-md: 12px;
-    --space-lg: 16px;
-    --space-xl: 24px;
+    /* ───── Typography (new design) ───── */
+    --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", ui-monospace, monospace;
 
-    /* --- Radius --- */
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 8px;
-    --radius-xl: 12px;
-    --radius-full: 9999px;
+    --text-xs: 11px;
+    --text-sm: 13px;
+    --text-base: 14px;
+    --text-md: 15px;
+    --text-lg: 18px;
+    --text-xl: 22px;
+    --text-2xl: 28px;
 
-    /* --- Typography --- */
-    --fs-xs: 11px;
+    /* Legacy font-size aliases */
+    --fs-xs: var(--text-xs);
     --fs-sm: 12px;
-    --fs-base: 14px;
+    --fs-base: var(--text-base);
     --fs-md: 13px;
     --fw-normal: 400;
     --fw-medium: 500;
@@ -79,17 +120,56 @@
     --lh-normal: 1.35;
     --lh-relaxed: 1.5;
 
-    /* --- Motion --- */
-    --duration-fast: 120ms;
-    --duration-normal: 200ms;
+    /* ───── Space (new design) ───── */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-12: 48px;
+
+    /* Legacy space aliases */
+    --space-xs: var(--space-1);
+    --space-sm: var(--space-2);
+    --space-md: var(--space-3);
+    --space-lg: var(--space-4);
+    --space-xl: var(--space-6);
+
+    /* ───── Radius (new design values) ───── */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-pill: 9999px;
+    --radius-xl: var(--radius-lg);
+    --radius-full: var(--radius-pill);
+
+    /* ───── Motion ───── */
+    --motion-fast: 120ms;
+    --motion-base: 180ms;
+    --ease: cubic-bezier(0.2, 0, 0, 1);
+    --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+
+    /* Legacy duration aliases */
+    --duration-fast: var(--motion-fast);
+    --duration-normal: var(--motion-base);
     --duration-slow: 300ms;
 
-    /* --- Shadows --- */
+    /* ───── Elevation / Shadow ───── */
+    --elev-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --elev-2: 0 8px 24px rgb(0 0 0 / 0.5);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
 
-    /* --- Sidebar (legacy tokens, kept for compat) --- */
+    /* ───── App layout dimensions ───── */
+    --rail-w: 56px;
+    --sidebar-w: 260px;
+    --rightrail-w: 320px;
+    --header-h: 48px;
+
+    /* ───── Sidebar card metrics (legacy compat) ───── */
     --sb-padding: 8px 16px;
     --sb-gap: 8px;
     --sb-card-radius: 6px;
@@ -104,6 +184,70 @@
     --sb-meta-lh: 1.35;
     --sb-ghost-opacity: 0.5;
     --sb-motion-fast: 160ms;
+}
+
+/* ───── Light theme overrides ───── */
+[data-theme="light"] {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface-2: #f3f4f6;
+    --surface-3: #e5e7eb;
+
+    --bg-header: var(--surface);
+    --bg-input: var(--surface-2);
+    --bg-msg: var(--surface);
+    --bg-msg-hover: var(--surface-2);
+    --bg-elevated: var(--surface-3);
+    --bg-subtle: rgba(0, 0, 0, 0.03);
+    --bg-overlay: rgba(0, 0, 0, 0.4);
+
+    --fg: #111827;
+    --fg-2: #374151;
+    --muted: #6b7280;
+    --meta: #9ca3af;
+
+    --border: #d1d5db;
+    --border-soft: #e5e7eb;
+    --border-strong: #9ca3af;
+    --border-subtle: rgba(0, 0, 0, 0.06);
+
+    --accent: #2563eb;
+    --accent-soft: #dbeafe;
+    --accent-hover: #1d4ed8;
+    --accent-active: #1e40af;
+
+    --sidebar-bg: #ffffff;
+    --sidebar-bg-2: #f9fafb;
+    --sidebar-fg: #111827;
+    --sidebar-muted: #6b7280;
+    --sidebar-hover: #f3f4f6;
+    --sidebar-active-bg: #dbeafe;
+    --sidebar-active-fg: #1d4ed8;
+    --sidebar-border: #e5e7eb;
+
+    --success: #16a34a;
+    --success-soft: #dcfce7;
+    --warn: #d97706;
+    --warn-soft: #fef3c7;
+    --danger: #dc2626;
+    --danger-soft: #fee2e2;
+
+    --human: #2563eb;
+
+    /* Light-theme neutral tints (use black alpha instead of white) */
+    --white-02: rgba(0, 0, 0, 0.02);
+    --white-03: rgba(0, 0, 0, 0.03);
+    --white-06: rgba(0, 0, 0, 0.06);
+    --white-08: rgba(0, 0, 0, 0.08);
+    --white-10: rgba(0, 0, 0, 0.10);
+    --white-12: rgba(0, 0, 0, 0.12);
+    --white-15: rgba(0, 0, 0, 0.15);
+
+    --elev-1: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 1px rgb(0 0 0 / 0.03);
+    --elev-2: 0 6px 18px rgb(0 0 0 / 0.06), 0 2px 6px rgb(0 0 0 / 0.04);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 * {
@@ -4473,3 +4617,274 @@ footer {
     50% { box-shadow: 0 0 8px 2px var(--accent); }
 }
 .help-pulse { animation: helpPulse 1s ease 3; }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   ▼▼▼ 2026 DESIGN REFRESH — agentchattr_UI_design port ▼▼▼
+   Rule: tokens only. Earlier rules using var(--*) already pick up new
+   colors. This block only ADDS new layout/components and overrides a
+   few legacy aesthetics (radii, borders) that conflict with the new
+   visual language.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── App shell & topbar ── */
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg);
+}
+
+header.topbar {
+    height: var(--header-h);
+    padding: 0 var(--space-3);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.topbar .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding-right: var(--space-3);
+    margin-right: var(--space-2);
+    border-right: 1px solid var(--border);
+    height: 100%;
+}
+.topbar .brand-logo {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 7px;
+    display: inline-grid;
+    place-items: center;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: -0.02em;
+    flex-shrink: 0;
+}
+.topbar .header-logo {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    object-fit: contain;
+    opacity: 0.8;
+}
+
+.topbar h1#room-title {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--fg);
+    letter-spacing: -0.01em;
+}
+
+.topbar .subtitle {
+    color: var(--muted);
+    font-size: var(--text-sm);
+    padding-left: var(--space-2);
+    border-left: 1px solid var(--border);
+    margin-left: var(--space-2);
+}
+
+/* ── Theme toggle button (icons swap on theme) ── */
+.theme-toggle-btn .theme-icon-light { display: none; }
+.theme-toggle-btn .theme-icon-dark { display: inline-block; }
+[data-theme="light"] .theme-toggle-btn .theme-icon-light { display: inline-block; }
+[data-theme="light"] .theme-toggle-btn .theme-icon-dark { display: none; }
+
+/* ── Content area grid (rail | sidebar | main | rightrail) ── */
+#content-area.content-grid {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+}
+#content-area.content-grid > main#timeline {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── Workspace rail (56px vertical strip) ── */
+.workspace-rail {
+    width: var(--rail-w);
+    flex-shrink: 0;
+    background: var(--sidebar-bg-2);
+    border-right: 1px solid var(--sidebar-border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-3) 0;
+    gap: var(--space-2);
+}
+.rail-icon {
+    width: 36px; height: 36px;
+    border: 0;
+    background: transparent;
+    color: var(--sidebar-muted);
+    border-radius: var(--radius-sm);
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.rail-icon:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-fg);
+}
+.rail-icon.active {
+    background: var(--sidebar-active-bg);
+    color: var(--sidebar-active-fg);
+}
+.rail-icon:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+.rail-logo {
+    background: var(--accent);
+    color: #fff;
+    margin-bottom: var(--space-1);
+}
+.rail-logo:hover { background: var(--accent-hover); color: #fff; }
+.rail-logo-text {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1;
+}
+.rail-divider {
+    width: 24px;
+    height: 1px;
+    background: var(--sidebar-border);
+    margin: var(--space-1) 0;
+}
+.rail-spacer { flex: 1; }
+
+/* ── Channel sidebar (refined surface + spacing) ── */
+#channel-sidebar {
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
+}
+#channel-sidebar:not(.hidden) {
+    flex-shrink: 0;
+}
+
+/* ── Main timeline (refined background) ── */
+main#timeline {
+    background: var(--bg);
+}
+
+/* ── Right rail panels (jobs / rules / pins) ── */
+#jobs-panel:not(.hidden),
+#rules-panel:not(.hidden) {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+}
+#pins-panel:not(.hidden) {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── Settings drawer ── */
+#settings-bar:not(.hidden) {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── Session bar (accent strip) ── */
+#session-bar:not(.hidden) {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+}
+[data-theme="light"] #session-bar:not(.hidden) {
+    color: var(--accent-active);
+}
+
+/* ── Composer footer ── */
+footer {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+}
+#input-row {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+#input-row:focus-within {
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
+}
+
+/* ── Message bubble refinements ── */
+.message .chat-bubble {
+    border-radius: var(--radius-md);
+}
+.message.self .chat-bubble {
+    background: var(--accent);
+    color: var(--accent-on);
+    border-color: var(--accent);
+}
+[data-theme="light"] .message.self .chat-bubble {
+    color: #ffffff;
+}
+
+/* ── Agent brand-color avatars (.avatar.agent-<id>) ──
+   Inline style="background-color: ..." set by chat.js wins specificity-wise;
+   these classes override using !important so brand colors apply for known agents. */
+.avatar.agent-claude   { background-color: var(--claude) !important; color: #fff; }
+.avatar.agent-codex    { background-color: var(--codex) !important; color: #1a1a1a; }
+.avatar.agent-gemini   { background-color: var(--gemini) !important; color: #fff; }
+.avatar.agent-copilot  { background-color: var(--copilot) !important; color: #fff; }
+.avatar.agent-kimi     { background-color: var(--kimi) !important; color: #fff; }
+.avatar.agent-qwen     { background-color: var(--qwen) !important; color: #fff; }
+.avatar.agent-kilo     { background-color: var(--kilo) !important; color: #1a1a1a; }
+.avatar.agent-codebuddy{ background-color: var(--codebuddy) !important; color: #fff; }
+.avatar.agent-minimax  { background-color: var(--minimax) !important; color: #0a3320; }
+.avatar.agent-human,
+.avatar.agent-user     { background-color: var(--human) !important; color: #fff; }
+
+/* ── Focus visibility (consistent across new components) ── */
+.settings-btn:focus-visible,
+.icon-btn:focus-visible,
+.rail-icon:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* ── Responsive: hide rail+rightrail at narrow widths ── */
+@media (max-width: 1000px) {
+    .workspace-rail { display: none; }
+    #jobs-panel:not(.hidden),
+    #rules-panel:not(.hidden) {
+        position: absolute;
+        top: var(--header-h);
+        right: 0;
+        bottom: 0;
+        width: min(320px, 80vw);
+        z-index: 50;
+        box-shadow: var(--elev-2);
+    }
+}
+@media (max-width: 600px) {
+    #channel-sidebar:not(.hidden) {
+        position: absolute;
+        top: var(--header-h);
+        left: 0;
+        bottom: 0;
+        width: min(260px, 80vw);
+        z-index: 40;
+        box-shadow: var(--elev-2);
+    }
+    .topbar .subtitle { display: none; }
+    .topbar .brand-logo { width: 24px; height: 24px; font-size: 12px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ▲▲▲ END 2026 DESIGN REFRESH ▲▲▲
+   ════════════════════════════════════════════════════════════════════ */
