@@ -113,7 +113,10 @@ function renderChannelTabs() {
 
 function renderChannelSidebar() {
     const list = document.getElementById('channel-sidebar-list');
-    if (!list) return;
+    if (!list) {
+        renderMobileChannelList();
+        return;
+    }
 
     // Preserve inline create/rename if present
     const existingCreate = list.querySelector('.channel-inline-create');
@@ -170,6 +173,43 @@ function renderChannelSidebar() {
     if (addBtn) {
         addBtn.classList.toggle('disabled', window.channelList.length >= 8);
     }
+    renderMobileChannelList();
+}
+
+function renderMobileChannelList() {
+    const list = document.getElementById('mobile-nav-channel-list');
+    if (!list) return;
+    list.innerHTML = '';
+    for (const name of window.channelList) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mobile-nav-channel' + (name === window.activeChannel ? ' active' : '');
+        btn.textContent = '# ' + name;
+        const unread = window.channelUnread[name] || 0;
+        if (unread > 0 && name !== window.activeChannel) {
+            const badge = document.createElement('span');
+            badge.textContent = unread > 99 ? '99+' : unread;
+            btn.appendChild(badge);
+        }
+        btn.onclick = () => {
+            switchChannel(name);
+            toggleMobileNav(false);
+        };
+        list.appendChild(btn);
+    }
+}
+
+function toggleMobileNav(force) {
+    const drawer = document.getElementById('mobile-nav-drawer');
+    const scrim = document.getElementById('mobile-nav-scrim');
+    const toggle = document.getElementById('mobile-nav-toggle');
+    if (!drawer || !scrim) return;
+    const opening = typeof force === 'boolean' ? force : drawer.classList.contains('hidden');
+    drawer.classList.toggle('hidden', !opening);
+    scrim.classList.toggle('hidden', !opening);
+    document.body.classList.toggle('mobile-nav-open', opening);
+    if (toggle) toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    if (opening) renderMobileChannelList();
 }
 
 function _showSidebarRenameDialog(oldName) {
@@ -300,6 +340,7 @@ function switchChannel(name) {
     localStorage.setItem('agentchattr-channel', name);
     filterMessagesByChannel();
     renderChannelTabs();
+    renderMobileChannelList();
     Store.set('activeChannel', name);
     // Restore: scroll to saved message, or bottom if none saved
     const savedId = _channelScrollMsg[name];
@@ -635,7 +676,7 @@ function _restoreSidebarState() {
             panel.style.width = savedWidth + 'px';
         }
     }
-    const savedMode = localStorage.getItem(SIDEBAR_MODE_KEY) || 'top';
+    const savedMode = localStorage.getItem(SIDEBAR_MODE_KEY) || 'sidebar';
     setChannelSidebarMode(savedMode, false);
 }
 
@@ -665,6 +706,10 @@ function _channelsInit() {
 
     requestAnimationFrame(_syncClearChatWidth);
     window.addEventListener('resize', _syncClearChatWidth);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') toggleMobileNav(false);
+    });
+    renderMobileChannelList();
 }
 
 // ---------------------------------------------------------------------------
@@ -678,5 +723,7 @@ window.renderChannelTabs = renderChannelTabs;
 window.deleteChannel = deleteChannel;
 window.showChannelRenameDialog = showChannelRenameDialog;
 window.renderChannelSidebar = renderChannelSidebar;
+window.renderMobileChannelList = renderMobileChannelList;
+window.toggleMobileNav = toggleMobileNav;
 window.setChannelSidebarMode = setChannelSidebarMode;
 window.Channels = { init: _channelsInit };

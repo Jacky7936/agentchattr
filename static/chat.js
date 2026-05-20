@@ -238,8 +238,8 @@ function applyTheme(t) {
     }
 }
 function loadTheme() {
-    let stored = 'dark';
-    try { stored = localStorage.getItem('agentchattr-theme') || 'dark'; } catch (e) {}
+    let stored = 'light';
+    try { stored = localStorage.getItem('agentchattr-theme') || 'light'; } catch (e) {}
     applyTheme(stored);
 }
 function toggleTheme() {

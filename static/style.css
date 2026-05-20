@@ -4835,19 +4835,22 @@ footer {
 }
 
 /* ── Agent brand-color avatars (.avatar.agent-<id>) ──
-   Inline style="background-color: ..." set by chat.js wins specificity-wise;
-   these classes override using !important so brand colors apply for known agents. */
-.avatar.agent-claude   { background-color: var(--claude) !important; color: #fff; }
-.avatar.agent-codex    { background-color: var(--codex) !important; color: #1a1a1a; }
-.avatar.agent-gemini   { background-color: var(--gemini) !important; color: #fff; }
-.avatar.agent-copilot  { background-color: var(--copilot) !important; color: #fff; }
-.avatar.agent-kimi     { background-color: var(--kimi) !important; color: #fff; }
-.avatar.agent-qwen     { background-color: var(--qwen) !important; color: #fff; }
-.avatar.agent-kilo     { background-color: var(--kilo) !important; color: #1a1a1a; }
-.avatar.agent-codebuddy{ background-color: var(--codebuddy) !important; color: #fff; }
-.avatar.agent-minimax  { background-color: var(--minimax) !important; color: #0a3320; }
+   chat.js emits `agent-${key}` where key can be a base ("codex") or
+   compound ("codex-planner"). The attribute-substring matchers below
+   cover both exact and compound variants. Inline `style="background-color"`
+   set by chat.js wins specificity-wise; !important re-asserts brand color
+   for known agents. */
+.avatar.agent-claude,    .avatar[class*="agent-claude-"]   { background-color: var(--claude) !important; color: #fff; }
+.avatar.agent-codex,     .avatar[class*="agent-codex-"]    { background-color: var(--codex) !important; color: #1a1a1a; }
+.avatar.agent-gemini,    .avatar[class*="agent-gemini-"]   { background-color: var(--gemini) !important; color: #fff; }
+.avatar.agent-copilot,   .avatar[class*="agent-copilot-"]  { background-color: var(--copilot) !important; color: #fff; }
+.avatar.agent-kimi,      .avatar[class*="agent-kimi-"]     { background-color: var(--kimi) !important; color: #fff; }
+.avatar.agent-qwen,      .avatar[class*="agent-qwen-"]     { background-color: var(--qwen) !important; color: #fff; }
+.avatar.agent-kilo,      .avatar[class*="agent-kilo-"]     { background-color: var(--kilo) !important; color: #1a1a1a; }
+.avatar.agent-codebuddy, .avatar[class*="agent-codebuddy-"]{ background-color: var(--codebuddy) !important; color: #fff; }
+.avatar.agent-minimax,   .avatar[class*="agent-minimax-"]  { background-color: var(--minimax) !important; color: #0a3320; }
 .avatar.agent-human,
-.avatar.agent-user     { background-color: var(--human) !important; color: #fff; }
+.avatar.agent-user       { background-color: var(--human) !important; color: #fff; }
 
 /* ── Focus visibility (consistent across new components) ── */
 .settings-btn:focus-visible,
@@ -4887,4 +4890,1369 @@ footer {
 
 /* ════════════════════════════════════════════════════════════════════
    ▲▲▲ END 2026 DESIGN REFRESH ▲▲▲
+   ════════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════════
+   ▼▼▼ POLISH v2 — mockup-fidelity refinement ▼▼▼
+   Detailed component polish: card-style bubbles, sidebar typography,
+   channel-bar dimming in sidebar mode, composer focus glow, role pills,
+   day dividers, mention brand colors. Mirrors agentchattr_UI_design/
+   chat.html lines 366-1050.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Body padding & font stack ── */
+body {
+    font-family: var(--font-body);
+    letter-spacing: -0.005em;
+}
+
+/* ── Topbar refinements ── */
+header.topbar {
+    padding: 0 var(--space-4) 0 0;
+}
+header.topbar .header-left {
+    gap: var(--space-3);
+    height: 100%;
+    min-width: 0;
+    flex: 1;
+}
+.topbar .brand {
+    margin-left: 0;
+    padding: 0 var(--space-3);
+    width: calc(var(--rail-w) + var(--sidebar-w) - var(--space-3));
+    border-right: 1px solid var(--border);
+    background: var(--sidebar-bg);
+    flex-shrink: 0;
+}
+[data-theme="dark"] .topbar .brand { background: var(--sidebar-bg-2); }
+.topbar .brand-logo {
+    margin-left: 0;
+}
+.topbar h1#room-title {
+    font-size: var(--text-md);
+    color: var(--fg);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.topbar h1#room-title::before {
+    content: "#";
+    color: var(--muted);
+    font-weight: 400;
+    font-size: var(--text-lg);
+    line-height: 1;
+}
+.topbar .subtitle {
+    font-size: var(--text-sm);
+    color: var(--muted);
+    padding-left: var(--space-3);
+    border-left: 1px solid var(--border);
+    margin-left: var(--space-2);
+}
+
+/* topbar tool buttons (jobs/rules/pins/settings/help/theme) */
+.topbar .settings-btn {
+    height: 32px;
+    min-width: 32px;
+    padding: 0 8px;
+    border-radius: var(--radius-sm);
+    color: var(--fg-2);
+    background: transparent;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.topbar .settings-btn:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+.topbar .settings-btn.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+.topbar .settings-btn .jobs-badge,
+.topbar .settings-btn .rules-badge {
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: var(--radius-pill);
+    min-width: 16px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+}
+
+/* ── Channel-bar (top mode) — dim when sidebar mode is on ── */
+body.channels-in-sidebar #channel-bar {
+    display: none;
+}
+#channel-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 4px var(--space-4);
+}
+.channel-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-weight: 500;
+}
+.channel-tab:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+.channel-tab.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: color-mix(in oklab, var(--accent), transparent 70%);
+    font-weight: 600;
+}
+
+/* ── Channel sidebar refinements ── */
+#channel-sidebar {
+    width: var(--channel-sidebar-w, 260px);
+    min-width: 200px;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-fg);
+    border-right: 1px solid var(--sidebar-border);
+    padding-top: var(--space-2);
+}
+.channel-sidebar-header {
+    padding: var(--space-3) var(--space-3) var(--space-1) var(--space-4);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sidebar-muted);
+}
+.channel-sidebar-header-add {
+    color: var(--sidebar-muted);
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1;
+    display: inline-grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+}
+.channel-sidebar-header-add:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-fg);
+}
+
+#channel-sidebar-list {
+    padding: 0 var(--space-2);
+    gap: 1px;
+}
+
+.channel-sidebar-row {
+    padding: 5px var(--space-3);
+    gap: var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--sidebar-muted);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+.channel-sidebar-row::before {
+    content: "#";
+    color: var(--sidebar-muted);
+    width: 14px;
+    text-align: center;
+    font-weight: 400;
+    flex-shrink: 0;
+}
+.channel-sidebar-row:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-fg);
+}
+.channel-sidebar-row:hover::before { color: var(--sidebar-fg); }
+.channel-sidebar-row.active {
+    background: var(--sidebar-active-bg);
+    color: var(--sidebar-active-fg);
+    font-weight: 700;
+}
+.channel-sidebar-row.active::before { color: var(--sidebar-active-fg); }
+.channel-sidebar-row-unread {
+    background: var(--danger);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: var(--radius-pill);
+    padding: 0 6px;
+}
+.channel-sidebar-row.active .channel-sidebar-row-unread {
+    background: var(--accent);
+}
+
+/* ── Workspace rail finishing touches ── */
+.workspace-rail {
+    padding: var(--space-3) 0 var(--space-3);
+    gap: var(--space-2);
+}
+.rail-icon { position: relative; }
+.rail-icon::after {
+    content: "";
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+    width: 3px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+    transition: transform var(--motion-fast) var(--ease);
+}
+.rail-icon:hover::after { transform: translateY(-50%) scale(0.5); }
+.rail-icon.active::after { transform: translateY(-50%) scale(1); }
+
+/* ── Timeline + day divider ── */
+main#timeline {
+    background: var(--bg);
+}
+#messages {
+    padding: var(--space-4) var(--space-5) var(--space-3);
+    max-width: none;
+}
+
+/* ── Message bubble (card-style mirroring .msg-body) ── */
+.message {
+    margin: var(--space-3) 0;
+    gap: var(--space-2);
+    align-items: flex-start;
+}
+.message:not(.self) .chat-bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--elev-1);
+    padding: var(--space-3) var(--space-4);
+    max-width: 780px;
+}
+[data-theme="dark"] .message:not(.self) .chat-bubble {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}
+.message.self .chat-bubble {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: var(--accent-on);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--accent), transparent 75%);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    max-width: 720px;
+    margin-left: auto;
+}
+.message.self .msg-sender,
+.message.self .msg-time,
+.message.self .msg-text,
+.message.self .msg-text p { color: var(--accent-on) !important; }
+.message.self .msg-time { opacity: 0.75; }
+.message.self code,
+.message.self .msg-text code {
+    background: rgb(0 0 0 / 0.22) !important;
+    color: var(--accent-on) !important;
+    border: 0 !important;
+}
+
+/* Avatar refinements (matching .msg-avatar in mockup) */
+.avatar-wrap {
+    padding-top: 2px;
+}
+.avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 50%;
+}
+
+/* Message header: name + time refinements */
+.bubble-header {
+    gap: var(--space-2);
+    margin-bottom: 4px;
+}
+.msg-sender {
+    font-weight: 700;
+    font-size: var(--text-md);
+    letter-spacing: -0.005em;
+}
+.msg-time {
+    color: var(--meta);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Bubble role pill (built into existing markup) */
+.bubble-role {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 1px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-3);
+    color: var(--muted);
+    border: 0;
+    line-height: 1.5;
+    cursor: pointer;
+}
+.bubble-role.has-role:hover { background: var(--surface-2); }
+.message.self .bubble-role {
+    background: rgb(255 255 255 / 0.2);
+    color: var(--accent-on);
+}
+
+/* Bubble copy hover button */
+.bubble-copy {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+}
+.message.self .bubble-copy {
+    background: rgb(255 255 255 / 0.15);
+    border-color: rgb(255 255 255 / 0.2);
+    color: var(--accent-on);
+}
+
+/* Mention pills inside messages */
+.msg-mention,
+.message .mention,
+.message a.mention {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 0 5px;
+    font-weight: 500;
+    font-size: 0.95em;
+}
+[data-theme="dark"] .message .mention { color: var(--fg); }
+.message.self .mention,
+.message.self .msg-mention {
+    background: rgb(255 255 255 / 0.2) !important;
+    color: var(--accent-on) !important;
+    font-weight: 600;
+}
+
+/* ── Composer (footer) refinements ── */
+footer {
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+}
+#mention-toggles-row {
+    margin-bottom: var(--space-2);
+    gap: var(--space-2);
+}
+#input-row {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    transition: border-color var(--motion-fast) var(--ease), box-shadow var(--motion-fast) var(--ease);
+}
+#input-row:focus-within {
+    border-color: color-mix(in oklab, var(--accent), transparent 30%);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 80%);
+}
+#input {
+    background: transparent;
+    border: 0;
+    color: var(--fg);
+    font-size: var(--text-base);
+    line-height: 1.5;
+}
+#input::placeholder {
+    color: var(--meta);
+}
+#send {
+    background: var(--accent);
+    color: var(--accent-on);
+    border: 0;
+    padding: 7px var(--space-3);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    transition: background var(--motion-fast) var(--ease);
+}
+#send:hover { background: var(--accent-hover); }
+#schedule-btn,
+#mic,
+#session-launch-btn {
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    border-radius: var(--radius-sm);
+    transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+#schedule-btn:hover,
+#mic:hover,
+#session-launch-btn:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+.sender-label {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-family: var(--font-mono);
+}
+.input-hint {
+    color: var(--meta);
+    font-size: var(--text-xs);
+    margin-top: var(--space-2);
+}
+
+/* Mention toggle chips (compact pill style) */
+.mention-toggle,
+.toggle-chip {
+    padding: 3px var(--space-2);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--muted);
+}
+.mention-toggle:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+.mention-toggle.on,
+.mention-toggle.active,
+.toggle-chip.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: color-mix(in oklab, var(--accent), transparent 60%);
+}
+
+/* Clear-chat ghost button */
+#clear-chat-btn.ghost-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    padding: 4px var(--space-3);
+    margin-left: auto;
+}
+#clear-chat-btn.ghost-btn:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+
+/* ── Right rail panels — refined surface + header ── */
+#jobs-panel,
+#rules-panel {
+    width: var(--rightrail-w);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+}
+.jobs-header,
+.rules-header {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    font-weight: 700;
+    font-size: var(--text-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.jobs-create-btn {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 0;
+    border-radius: var(--radius-sm);
+    width: 24px;
+    height: 24px;
+    display: inline-grid;
+    place-items: center;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    margin-left: auto;
+}
+.jobs-create-btn:hover {
+    background: var(--accent);
+    color: var(--accent-on);
+}
+
+/* ── Pins panel ── */
+#pins-panel {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+}
+.pins-header {
+    padding: var(--space-2) var(--space-4);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* ── Session bar refined ── */
+#session-bar:not(.hidden) {
+    background: color-mix(in oklab, var(--accent-soft), var(--surface) 30%);
+    border-bottom: 1px solid color-mix(in oklab, var(--accent), transparent 70%);
+    color: var(--accent);
+    padding: 6px var(--space-4);
+}
+.session-template { font-weight: 700; color: var(--accent); }
+[data-theme="dark"] .session-template { color: var(--accent-hover); }
+.session-phase { color: var(--fg-2); }
+.session-waiting { color: var(--muted); }
+
+.session-end-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--fg-2);
+    font-size: var(--text-xs);
+    padding: 3px var(--space-3);
+    border-radius: var(--radius-sm);
+}
+.session-end-btn:hover { background: var(--surface-2); color: var(--fg); }
+.session-jump-btn {
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in oklab, var(--accent), transparent 60%);
+    color: var(--accent);
+    font-size: var(--text-xs);
+    padding: 3px var(--space-3);
+    border-radius: var(--radius-sm);
+}
+
+/* ── Settings drawer ── */
+#settings-bar:not(.hidden) {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-4);
+}
+.settings-field label {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 500;
+}
+.settings-field input,
+.settings-field select {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    border-radius: var(--radius-sm);
+    padding: 4px var(--space-2);
+    font-size: var(--text-sm);
+}
+.settings-field input:focus,
+.settings-field select:focus {
+    border-color: var(--accent);
+    box-shadow: var(--focus-ring);
+    outline: none;
+}
+
+/* ── Agent status pills polish ── */
+#agent-status {
+    gap: 6px;
+}
+.status-pill {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--fg-2);
+    font-size: var(--text-xs);
+    border-radius: var(--radius-pill);
+    padding: 3px 10px;
+}
+.status-pill:hover { background: var(--surface-3); }
+.status-pill.available {
+    background: color-mix(in oklab, var(--success), transparent 88%);
+    border-color: color-mix(in oklab, var(--success), transparent 60%);
+}
+
+/* ── Loading spinner ── */
+#loading-indicator {
+    color: var(--muted);
+    font-size: var(--text-sm);
+}
+.loading-spinner {
+    border-color: var(--border) var(--accent) var(--accent) var(--border);
+}
+
+/* ── Typing indicator polish ── */
+#typing-indicator {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-style: italic;
+    padding: 4px var(--space-5);
+}
+
+/* ── Reply quote inside bubble ── */
+.reply-quote {
+    border-left: 2px solid var(--border-strong);
+    padding: 2px var(--space-2);
+    margin-bottom: 6px;
+    background: var(--surface-2);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: var(--text-sm);
+    color: var(--muted);
+}
+.reply-quote .reply-sender { font-weight: 600; color: var(--fg-2); }
+.message.self .reply-quote {
+    background: rgb(255 255 255 / 0.12);
+    border-left-color: rgb(255 255 255 / 0.4);
+    color: rgb(255 255 255 / 0.85);
+}
+.message.self .reply-quote .reply-sender { color: rgb(255 255 255 / 0.95); }
+
+/* ── Scroll anchor (jump-to-bottom) ── */
+#scroll-anchor:not(.hidden) {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--fg-2);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--elev-2);
+}
+#scroll-anchor:hover { background: var(--surface-2); color: var(--accent); }
+.unread-badge {
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: var(--radius-pill);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ▲▲▲ END POLISH v2 ▲▲▲
+   ════════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════════
+   ▼▼▼ POLISH v3 — 亮色 composer + mobile 響應式 ▼▼▼
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Composer footer：用 bg 當底色，input-row 凸顯為 surface 卡片 ── */
+footer {
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    padding: var(--space-3) var(--space-4) var(--space-3);
+}
+[data-theme="light"] footer {
+    background: var(--surface-2);
+}
+
+/* input-row：在亮色用白色卡片浮起，與灰底 footer 形成層次 */
+#input-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 8px 6px 12px;
+    box-shadow: var(--elev-1);
+    transition: border-color var(--motion-fast) var(--ease), box-shadow var(--motion-fast) var(--ease);
+}
+[data-theme="dark"] #input-row {
+    background: var(--surface);
+}
+#input-row:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 80%);
+}
+
+#input {
+    background: transparent;
+    color: var(--fg);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    min-height: 24px;
+    padding: 6px 4px;
+}
+#input::placeholder { color: var(--meta); }
+
+/* Sender label — 強化品牌色辨識度 */
+.sender-label {
+    color: var(--accent);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    padding: 0 6px;
+    flex-shrink: 0;
+}
+
+/* Session launch / mic / schedule buttons */
+#session-launch-btn,
+#mic,
+#schedule-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    border-radius: var(--radius-sm);
+    width: 32px;
+    height: 32px;
+    display: inline-grid;
+    place-items: center;
+    transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+    flex-shrink: 0;
+}
+#session-launch-btn:hover,
+#mic:hover,
+#schedule-btn:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+[data-theme="light"] #session-launch-btn:hover,
+[data-theme="light"] #mic:hover,
+[data-theme="light"] #schedule-btn:hover {
+    background: var(--bg);
+    color: var(--accent);
+}
+#mic.recording {
+    background: var(--danger);
+    color: #fff;
+    animation: micPulse 1.2s ease-in-out infinite;
+}
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--danger), transparent 60%); }
+    50% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--danger), transparent 90%); }
+}
+
+/* Send button — 一律 vivid accent (即使 inactive 也清楚可見) */
+#send {
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    padding: 7px 18px;
+    min-height: 36px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--accent), transparent 60%);
+    transition: background var(--motion-fast) var(--ease), transform var(--motion-fast) var(--ease), box-shadow var(--motion-fast) var(--ease);
+}
+#send:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 4px 12px color-mix(in oklab, var(--accent), transparent 60%);
+    opacity: 1;
+}
+#send:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--accent), transparent 70%);
+    opacity: 1;
+}
+.send-group {
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--accent), transparent 60%);
+}
+.send-group #send {
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    box-shadow: none;
+}
+.send-clock {
+    background: var(--accent);
+    color: #fff;
+    border-left: 1px solid color-mix(in oklab, #fff, transparent 70%);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 0 9px;
+    min-width: 32px;
+}
+.send-clock:hover { background: var(--accent-hover); }
+
+/* Send INACTIVE state — 用 muted accent-soft (亮色清楚可見) */
+.send-group.inactive {
+    box-shadow: none;
+}
+.send-group.inactive #send,
+.send-group.inactive .send-clock {
+    background: var(--accent-soft);
+    color: var(--accent);
+    cursor: default;
+    box-shadow: none;
+}
+[data-theme="dark"] .send-group.inactive #send,
+[data-theme="dark"] .send-group.inactive .send-clock {
+    background: color-mix(in oklab, var(--accent), transparent 65%);
+    color: color-mix(in oklab, var(--accent-hover), #fff 30%);
+}
+.send-group.inactive .send-clock {
+    border-left-color: color-mix(in oklab, var(--accent), transparent 80%);
+}
+.send-group.inactive #send:hover,
+.send-group.inactive .send-clock:hover {
+    background: var(--accent-soft);
+}
+
+/* Mention toggles row */
+#mention-toggles-row {
+    margin-bottom: 8px;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.mention-toggle {
+    padding: 4px 10px 4px 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--muted);
+    box-shadow: var(--elev-1);
+    transition: all var(--motion-fast) var(--ease);
+}
+[data-theme="light"] .mention-toggle {
+    background: var(--surface);
+}
+.mention-toggle:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+    border-color: var(--border-strong);
+}
+.mention-toggle.active,
+.mention-toggle.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: color-mix(in oklab, var(--accent), transparent 50%);
+}
+[data-theme="light"] .mention-toggle.active {
+    background: color-mix(in oklab, var(--accent), #fff 80%);
+    color: var(--accent-active);
+    border-color: color-mix(in oklab, var(--accent), transparent 60%);
+}
+
+/* Clear Chat button */
+#clear-chat-btn.ghost-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: var(--radius-sm);
+    padding: 4px 12px;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    box-shadow: var(--elev-1);
+    transition: all var(--motion-fast) var(--ease);
+    margin-left: auto;
+}
+#clear-chat-btn.ghost-btn:hover {
+    background: var(--danger-soft);
+    color: var(--danger);
+    border-color: color-mix(in oklab, var(--danger), transparent 60%);
+}
+
+/* Input hint */
+.input-hint {
+    color: var(--meta);
+    font-size: var(--text-xs);
+    margin-top: 8px;
+    text-align: center;
+}
+[data-theme="light"] .input-hint {
+    color: var(--muted);
+}
+
+/* ── Mobile/tablet 響應式 ── */
+@media (max-width: 820px) {
+    /* Composer 緊湊 */
+    footer {
+        padding: var(--space-2) var(--space-3);
+    }
+    #input-row { padding: 4px 6px 4px 10px; }
+    .input-hint { display: none; }
+    .send-clock { display: none; }
+    .send-group #send {
+        border-radius: var(--radius-sm);
+    }
+    /* Mention toggles 水平捲動而非換行 */
+    #mention-toggles-row { gap: 4px; }
+    #mention-toggles {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    #mention-toggles::-webkit-scrollbar { display: none; }
+}
+
+@media (max-width: 600px) {
+    /* 隱藏 brand 副標 */
+    .topbar .subtitle { display: none; }
+    .topbar .header-left { gap: var(--space-2); }
+    .topbar .settings-btn { min-width: 30px; padding: 0 4px; }
+    .topbar h1#room-title { font-size: var(--text-sm); }
+    .topbar .brand-logo { width: 22px; height: 22px; font-size: 11px; }
+
+    /* Composer 手機優化 */
+    footer { padding: 8px 10px; }
+    #input-row {
+        padding: 4px 4px 4px 10px;
+        border-radius: var(--radius-md);
+        box-shadow: 0 -2px 8px rgb(0 0 0 / 0.04);
+    }
+    [data-theme="dark"] #input-row {
+        box-shadow: 0 -2px 8px rgb(0 0 0 / 0.4);
+    }
+    #send {
+        padding: 6px 10px;
+        font-size: var(--text-xs);
+        min-height: 32px;
+    }
+    #session-launch-btn,
+    #mic,
+    #schedule-btn {
+        width: 28px;
+        height: 28px;
+    }
+    .sender-label { display: none; }
+
+    /* Mention toggles → tiny pills */
+    .mention-toggle {
+        padding: 3px 8px;
+        font-size: 10px;
+    }
+    #clear-chat-btn.ghost-btn {
+        padding: 3px 8px;
+        font-size: 10px;
+    }
+
+    /* Messages: 縮小 padding、撐滿寬度 */
+    #messages { padding: var(--space-3) var(--space-3) var(--space-2); }
+    .message:not(.self) .chat-bubble,
+    .message.self .chat-bubble {
+        padding: 10px 12px;
+        max-width: 100%;
+    }
+    .message { gap: 6px; }
+    .avatar { width: 28px; height: 28px; font-size: 11px; }
+
+    /* Sidebar drawer 模式（覆蓋而非並排） */
+    body.channels-in-sidebar #channel-sidebar:not(.hidden) {
+        position: fixed;
+        top: var(--header-h);
+        left: 0;
+        bottom: 0;
+        width: min(280px, 85vw);
+        z-index: 80;
+        box-shadow: 4px 0 24px rgb(0 0 0 / 0.3);
+    }
+    .workspace-rail { display: none; }
+
+    /* Right panels: 全寬覆蓋 */
+    #jobs-panel:not(.hidden),
+    #rules-panel:not(.hidden) {
+        position: fixed;
+        top: var(--header-h);
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        z-index: 90;
+    }
+
+    /* Topbar 工具列縮減 */
+    #agent-status { display: none; }
+    .discord-pill { display: none; }
+}
+
+@media (max-width: 430px) {
+    /* 超小裝置 */
+    .topbar h1#room-title::before { display: none; }
+    .topbar { padding: 0 8px; }
+    #send { padding: 6px 8px; }
+    #mention-toggles-row { padding: 0 var(--space-2); margin-bottom: 6px; }
+    /* Hide brand text on smallest devices, keep logo */
+    .topbar .header-logo { display: none; }
+}
+
+/* 觸控裝置：放大互動目標 */
+@media (hover: none) and (pointer: coarse) {
+    .channel-sidebar-row { padding: 8px var(--space-3); }
+    .settings-btn,
+    .icon-btn,
+    .rail-icon { min-width: 40px; min-height: 40px; }
+    #send { min-height: 40px; }
+    .mention-toggle { padding: 6px 12px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ▲▲▲ END POLISH v3 ▲▲▲
+   ════════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════════════════════════════════════════════════════════
+   ▼▼▼ POLISH v4 — handoff routes + mobile-first shell behavior ▼▼▼
+   ════════════════════════════════════════════════════════════════════ */
+
+.surface-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.surface-nav-link {
+    width: 30px;
+    height: 30px;
+    display: inline-grid;
+    place-items: center;
+    color: var(--muted);
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
+}
+
+.surface-nav-link:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+
+.mobile-nav-btn {
+    display: none !important;
+}
+
+.mobile-nav-drawer {
+    position: fixed;
+    top: var(--header-h);
+    right: 0;
+    bottom: 0;
+    width: min(360px, 88vw);
+    z-index: 120;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: -18px 0 44px rgb(15 23 42 / 0.18);
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-4);
+    gap: var(--space-4);
+    overflow-y: auto;
+    transform: translateX(0);
+    transition: transform var(--motion-base) var(--ease), opacity var(--motion-base) var(--ease);
+}
+
+.mobile-nav-drawer.hidden {
+    display: flex !important;
+    transform: translateX(100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.mobile-nav-scrim {
+    position: fixed;
+    inset: var(--header-h) 0 0 0;
+    z-index: 110;
+    border: 0;
+    background: rgb(15 23 42 / 0.28);
+    padding: 0;
+}
+
+.mobile-nav-scrim.hidden {
+    display: none;
+}
+
+.mobile-nav-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    color: var(--fg);
+}
+
+.mobile-nav-head button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    color: var(--fg);
+    font-size: 20px;
+}
+
+.mobile-nav-section {
+    display: grid;
+    gap: 6px;
+}
+
+.mobile-nav-section a,
+.mobile-nav-channel {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--fg-2);
+    padding: 0 var(--space-3);
+    font: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-align: left;
+    text-decoration: none;
+}
+
+.mobile-nav-section a:hover,
+.mobile-nav-channel:hover,
+.mobile-nav-channel.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: color-mix(in oklab, var(--accent), transparent 65%);
+}
+
+.mobile-nav-channel span {
+    min-width: 20px;
+    min-height: 20px;
+    border-radius: var(--radius-pill);
+    background: var(--danger);
+    color: #fff;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 6px;
+    font-size: 11px;
+}
+
+.mobile-nav-label {
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: var(--space-2);
+}
+
+#mobile-nav-channel-list {
+    display: grid;
+    gap: 6px;
+}
+
+@media (max-width: 1080px) {
+    .surface-nav {
+        display: none;
+    }
+}
+
+@media (max-width: 820px) {
+    html,
+    body,
+    #app {
+        min-width: 0;
+        overflow-x: hidden;
+    }
+
+    .mobile-nav-btn {
+        display: inline-flex !important;
+    }
+
+    header.topbar {
+        padding-left: max(8px, env(safe-area-inset-left));
+        padding-right: max(8px, env(safe-area-inset-right));
+    }
+
+    .topbar .brand {
+        width: auto;
+        min-width: 42px;
+        padding: 0 var(--space-2);
+        border-right: 0;
+        background: transparent;
+    }
+
+    [data-theme="dark"] .topbar .brand {
+        background: transparent;
+    }
+
+    #content-area.content-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.channels-in-sidebar #channel-sidebar:not(.hidden) {
+        display: none;
+    }
+
+    #content-area.content-grid > main#timeline {
+        grid-column: 1;
+        min-width: 0;
+    }
+
+    main#timeline {
+        padding-bottom: 0;
+    }
+
+    .message,
+    .message.self,
+    .message.other {
+        grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+        max-width: 100%;
+    }
+
+    .message.self {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .message .chat-bubble {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    .bubble-header {
+        min-width: 0;
+        flex-wrap: wrap;
+    }
+
+    .bubble-role {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 60;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+
+    #mention-toggles-row {
+        overflow: hidden;
+    }
+
+    #input-row {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto;
+        gap: 6px;
+        align-items: end;
+    }
+
+    #input {
+        min-width: 0;
+        max-height: 30vh;
+        font-size: 16px;
+    }
+
+    #jobs-panel:not(.hidden),
+    #rules-panel:not(.hidden),
+    #pins-panel:not(.hidden) {
+        position: fixed;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        height: min(78vh, 720px);
+        z-index: 100;
+        border-radius: 16px 16px 0 0;
+        border: 1px solid var(--border);
+        border-bottom: 0;
+        box-shadow: 0 -18px 42px rgb(15 23 42 / 0.22);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    #jobs-panel:not(.hidden)::before,
+    #rules-panel:not(.hidden)::before,
+    #pins-panel:not(.hidden)::before {
+        content: "";
+        width: 42px;
+        height: 4px;
+        border-radius: var(--radius-pill);
+        background: var(--border-strong);
+        opacity: 0.6;
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .jobs-grip,
+    .rules-grip {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .header-right {
+        gap: 4px;
+    }
+
+    #settings-toggle,
+    #help-btn {
+        display: none;
+    }
+
+    .topbar .settings-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    #jobs-toggle,
+    #rules-toggle,
+    #pins-toggle,
+    #theme-toggle {
+        width: 44px;
+    }
+
+    #messages {
+        padding-left: max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+    }
+
+    .msg-actions {
+        position: static;
+        display: flex;
+        margin-top: 6px;
+        border: 0;
+        box-shadow: none;
+        background: transparent;
+        opacity: 1;
+        justify-content: flex-end;
+    }
+
+    .message:hover .msg-actions {
+        display: flex;
+    }
+
+    .convert-job-pill,
+    .bubble-copy {
+        opacity: 0.72;
+    }
+
+    .decision-choices,
+    .proposal-actions,
+    .jc-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 430px) {
+    .mobile-nav-drawer {
+        width: 100vw;
+        border-left: 0;
+    }
+
+    .topbar .settings-btn {
+        min-width: 44px;
+        width: 44px;
+    }
+
+    #input-row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    #session-launch-btn {
+        display: none;
+    }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ▲▲▲ END POLISH v4 ▲▲▲
    ════════════════════════════════════════════════════════════════════ */

@@ -98,6 +98,20 @@ def main():
 
     static_dir = ROOT / "static"
 
+    def _inject_session_token(html: str) -> str:
+        return html.replace(
+            "</head>",
+            f'<script>window.__SESSION_TOKEN__="{session_token}";</script>\n</head>',
+        )
+
+    def _inject_surface_runtime(html: str, surface: str) -> str:
+        html = _inject_session_token(html)
+        runtime = (
+            f'<script>window.__AGENTCHATTR_SURFACE__="{surface}";</script>\n'
+            '<script src="/static/surfaces.js?v=1"></script>\n'
+        )
+        return html.replace("</body>", runtime + "</body>")
+
     @app.get("/")
     async def index():
         # Read index.html fresh each request so changes take effect without restart.
@@ -105,11 +119,35 @@ def main():
         # This is safe: same-origin policy prevents cross-origin pages from reading
         # the response body, so only the user's own browser tab gets the token.
         html = (static_dir / "index.html").read_text("utf-8")
-        injected = html.replace(
-            "</head>",
-            f'<script>window.__SESSION_TOKEN__="{session_token}";</script>\n</head>',
-        )
+        injected = _inject_session_token(html)
         return HTMLResponse(injected, headers={"Cache-Control": "no-store"})
+
+    surface_files = {
+        "landing": "landing.html",
+        "search": "search.html",
+        "files": "files.html",
+        "notifications": "notifications.html",
+        "thread": "thread.html",
+        "member": "member-detail.html",
+        "settings": "settings.html",
+        "sidebar": "sidebar.html",
+    }
+
+    async def _serve_design_surface(surface_name: str):
+        filename = surface_files.get(surface_name)
+        if not filename:
+            return HTMLResponse("Not found", status_code=404)
+        html = (ROOT / "agentchattr_UI_design" / filename).read_text("utf-8")
+        injected = _inject_surface_runtime(html, surface_name)
+        return HTMLResponse(injected, headers={"Cache-Control": "no-store"})
+
+    def _surface_endpoint(surface_name: str):
+        async def endpoint():
+            return await _serve_design_surface(surface_name)
+        return endpoint
+
+    for surface_name in surface_files:
+        app.add_api_route(f"/{surface_name}", _surface_endpoint(surface_name), methods=["GET"])
 
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
@@ -164,4 +202,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
