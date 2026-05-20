@@ -36,10 +36,43 @@ is_server_running() {
     ss -tlnp 2>/dev/null | grep -q ':8300 '
 }
 
+ensure_ui_password() {
+    if [ -f ".env" ]; then
+        set -a
+        . ./.env
+        set +a
+        if [ -n "$AGENTCHATTR_UI_PASSWORD" ]; then
+            echo "UI password gate enabled from .env"
+            return 0
+        fi
+    fi
+
+    password=$(.venv/bin/python -c 'import secrets; print(secrets.token_hex(12))') || {
+        echo "Error: failed to generate UI password."
+        exit 1
+    }
+
+    if [ -f ".env" ] && [ -s ".env" ]; then
+        last_char=$(tail -c 1 .env 2>/dev/null || true)
+        if [ "$last_char" != "" ]; then
+            printf '\n' >> .env
+        fi
+    fi
+
+    printf "AGENTCHATTR_UI_PASSWORD='%s'\n" "$password" >> .env
+    chmod 600 .env 2>/dev/null || true
+    UI_PASSWORD_CREATED=1
+
+    echo "Created .env with UI password gate enabled."
+    echo "UI password: $password"
+}
+
 ensure_venv
+UI_PASSWORD_CREATED=0
+ensure_ui_password
 
 SERVER_URL="http://192.168.50.201:8300"
-SERVER_CMD="printf 'YES\\n' | .venv/bin/python run.py --allow-network"
+SERVER_CMD="set -a; [ -f .env ] && . ./.env; set +a; printf 'YES\\n' | .venv/bin/python run.py --allow-network"
 
 # Detect if running inside a CMux terminal session
 IS_CMUX=0
@@ -83,13 +116,26 @@ run_in_new_cmux_tab() {
     fi
 }
 
+run_in_new_cmux_workspace() {
+    local cmd="$1"
+    local name="$2"
+    echo "Starting $name in new cmux workspace..."
+
+    if "$CMUX_BIN" new-workspace --name "$name" --cwd "$(pwd)" --command "$cmd" --focus false >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "Could not create cmux workspace for $name; falling back to a new tab."
+    run_in_new_cmux_tab "$cmd" "$name"
+}
+
 start_agent() {
     local cmd="$1"
     local name="$2"
     local log_file="$3"
 
     if [ "$IS_CMUX" -eq 1 ]; then
-        run_in_new_cmux_tab "$cmd" "$name"
+        run_in_new_cmux_workspace "$cmd" "$name"
     else
         echo "Starting $name..."
         if [ "$(uname -s)" = "Darwin" ]; then
@@ -100,10 +146,15 @@ start_agent() {
     fi
 }
 
+if [ "$UI_PASSWORD_CREATED" -eq 1 ] && is_server_running; then
+    echo "Note: a server is already running on port 8300."
+    echo "The new UI password will apply after you run macos-linux/stop_all.sh and start again."
+fi
+
 # 1. 啟動伺服器 (若未運行)
 if ! is_server_running; then
     if [ "$IS_CMUX" -eq 1 ]; then
-        run_in_new_cmux_tab "$SERVER_CMD" "Server"
+        run_in_new_cmux_workspace "$SERVER_CMD" "Server"
     else
         echo "Starting agentchattr server..."
         if [ "$(uname -s)" = "Darwin" ]; then
@@ -150,6 +201,7 @@ fi
 
 # 5. 在當前視窗啟動 第一個 Claude
 if [ "$IS_CMUX" -eq 1 ]; then
+    "$CMUX_BIN" rename-workspace "Claude Designer" >/dev/null 2>&1 || \
     "$CMUX_BIN" rename-tab "Claude Designer" >/dev/null 2>&1
 fi
 echo "Starting Claude Designer in current terminal window..."
