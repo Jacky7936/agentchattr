@@ -9,13 +9,13 @@ data_dir = "./data"
 
 [agents.claude]
 command = "claude"
-cwd = ".."
+cwd = "/Users/jackyho/GitHub/dacitech-temple-erp"
 color = "#da7756"
 label = "Claude"
 
 [agents.codex]
 command = "codex"
-cwd = ".."
+cwd = "/Users/jackyho/GitHub/dacitech-temple-erp"
 color = "#10a37f"
 label = "Codex"
 
