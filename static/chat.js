@@ -2377,6 +2377,46 @@ function selectMention(name) {
     mentionMenuVisible = false;
 }
 
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentionTokenPattern(agentName) {
+    return new RegExp(`(^|\\s)@${escapeRegExp(agentName)}(?=\\s|$)`, 'i');
+}
+
+function removeMentionToken(text, agentName) {
+    return text
+        .replace(mentionTokenPattern(agentName), (match, prefix) => prefix ? prefix : '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/^\s+/, '');
+}
+
+function syncComposerMention(agentName, shouldAdd) {
+    const input = document.getElementById('input');
+    if (!input) return;
+
+    const original = input.value;
+    let next = original;
+
+    if (shouldAdd) {
+        if (!mentionTokenPattern(agentName).test(next)) {
+            const mention = `@${agentName}`;
+            next = next.trimStart() ? `${mention} ${next.trimStart()}` : `${mention} `;
+        }
+        _lastMentionedAgent = agentName;
+    } else {
+        next = removeMentionToken(next, agentName);
+    }
+
+    if (next !== original) {
+        input.value = next;
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+}
+
 // --- Input ---
 
 function setupInput() {
@@ -3122,13 +3162,16 @@ function buildMentionToggles() {
             btn.classList.add('active');
         }
         btn.onclick = () => {
+            let shouldAdd = false;
             if (activeMentions.has(name)) {
                 activeMentions.delete(name);
                 btn.classList.remove('active');
             } else {
                 activeMentions.add(name);
                 btn.classList.add('active');
+                shouldAdd = true;
             }
+            syncComposerMention(name, shouldAdd);
             updateSchedulePopoverState();
         };
         container.appendChild(btn);

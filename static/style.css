@@ -8947,3 +8947,162 @@ footer:focus-within {
 /* ════════════════════════════════════════════════════════════════════
    ▲▲▲ END USER DIFF FIXES v13 ▲▲▲
    ════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════
+   USER DIFF FIXES v14
+   Two-row topbar and visible mention-chip composer syncing.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --header-h: 88px;
+}
+
+header.topbar {
+    height: calc(var(--header-h) + var(--safe-top)) !important;
+    min-height: calc(var(--header-h) + var(--safe-top)) !important;
+    padding-top: var(--safe-top) !important;
+    padding-bottom: 6px !important;
+    align-items: stretch !important;
+}
+
+.topbar .header-right {
+    width: 100%;
+    height: var(--header-h) !important;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    row-gap: 5px;
+    overflow: visible;
+}
+
+.topbar .settings-btn,
+.topbar .mobile-nav-btn {
+    order: 1;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+}
+
+#agent-status {
+    order: 2;
+    flex: 0 0 100% !important;
+    width: 100%;
+    height: 36px !important;
+    min-height: 36px;
+    max-width: none !important;
+    padding: 0 1px !important;
+    overflow-x: auto;
+    overflow-y: hidden !important;
+}
+
+.status-pill.agent-pill {
+    height: 32px !important;
+    min-height: 32px;
+    max-height: 32px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+}
+
+.mobile-nav-drawer,
+#channel-sidebar:not(.hidden),
+#jobs-panel:not(.hidden),
+#rules-panel:not(.hidden) {
+    top: calc(var(--header-h) + var(--safe-top)) !important;
+}
+
+.mobile-nav-scrim {
+    inset: calc(var(--header-h) + var(--safe-top)) 0 0 0 !important;
+}
+
+.mention-toggle.active {
+    border-color: color-mix(in oklab, var(--agent-color, var(--accent)), transparent 32%) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--agent-color, var(--accent)), transparent 42%);
+}
+
+@media (max-width: 600px) {
+    :root {
+        --header-h: 88px;
+    }
+
+    header.topbar {
+        height: calc(var(--header-h) + var(--safe-top)) !important;
+        min-height: calc(var(--header-h) + var(--safe-top)) !important;
+        padding: calc(var(--safe-top) + 4px) max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px)) !important;
+    }
+
+    .topbar .header-right {
+        height: calc(var(--header-h) - 10px) !important;
+        gap: 5px;
+        row-gap: 5px;
+        justify-content: flex-end;
+    }
+
+    .topbar .settings-btn,
+    .topbar .mobile-nav-btn {
+        display: inline-flex !important;
+        width: 34px;
+        min-width: 34px;
+        height: 34px;
+        min-height: 34px;
+    }
+
+    #agent-status {
+        display: flex !important;
+        height: 34px !important;
+        min-height: 34px;
+    }
+
+    .status-pill.agent-pill {
+        height: 30px !important;
+        min-height: 30px;
+        max-height: 30px;
+    }
+
+    .mobile-nav-drawer,
+    #channel-sidebar:not(.hidden),
+    #jobs-panel:not(.hidden),
+    #rules-panel:not(.hidden) {
+        top: calc(var(--header-h) + var(--safe-top)) !important;
+    }
+
+    .mobile-nav-scrim {
+        inset: calc(var(--header-h) + var(--safe-top)) 0 0 0 !important;
+    }
+}
+
+@media (max-width: 430px) {
+    #settings-toggle,
+    #help-btn,
+    #pins-toggle {
+        display: inline-flex !important;
+    }
+}
+
+@supports (-webkit-touch-callout: none) {
+    @media (max-width: 600px) {
+        header.topbar {
+            height: calc(var(--header-h) + var(--safe-top)) !important;
+            min-height: calc(var(--header-h) + var(--safe-top)) !important;
+        }
+
+        .mobile-nav-drawer,
+        #channel-sidebar:not(.hidden),
+        #jobs-panel:not(.hidden),
+        #rules-panel:not(.hidden) {
+            top: calc(var(--header-h) + var(--safe-top)) !important;
+        }
+
+        .mobile-nav-scrim {
+            inset: calc(var(--header-h) + var(--safe-top)) 0 0 0 !important;
+        }
+    }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ▲▲▲ END USER DIFF FIXES v14 ▲▲▲
+   ════════════════════════════════════════════════════════════════════ */
