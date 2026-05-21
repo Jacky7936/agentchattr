@@ -15,6 +15,50 @@ NONBLOCKING_RUNTIME_POLICY = (
     "permission prompts during delegated work."
 )
 
+LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS = (
+    "architecture",
+    "architect",
+    "schema",
+    "database",
+    "migration",
+    "api",
+    "data flow",
+    "架構",
+    "資料流",
+)
+LEGACY_GEMINI_RESEARCHER_SPECIALTY = (
+    "Scan large context, compare documents, find contradictions, and summarise evidence quickly."
+)
+LEGACY_GEMINI_RESEARCHER_TRIGGER_TAGS = (
+    "research",
+    "docs",
+    "compare",
+    "scan",
+    "summarize",
+    "context",
+    "legacy",
+    "文件",
+    "整理",
+    "研究",
+    "大量",
+)
+LEGACY_GEMINI_RESEARCHER_RESPONSIBILITIES = (
+    "Collect evidence and cite where it came from.",
+    "Surface missing context before planning.",
+)
+
+LEGACY_FIELD_MIGRATIONS = {
+    "codex-architect": {"trigger_tags": (LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS,)},
+    "gemini-researcher": {
+        "model": ("Gemini 3.5 Flash",),
+        "specialty": (LEGACY_GEMINI_RESEARCHER_SPECIALTY,),
+        "trigger_tags": (LEGACY_GEMINI_RESEARCHER_TRIGGER_TAGS,),
+        "responsibilities": (LEGACY_GEMINI_RESEARCHER_RESPONSIBILITIES,),
+    },
+    "gemini-challenger": {"model": ("Gemini 3.5 Flash",)},
+    "grok-prototyper": {"role": ("Builder",), "rank": (3,)},
+}
+
 
 DEFAULT_TEAM_PROFILES = {
     "codex-dispatcher": {
@@ -53,11 +97,48 @@ DEFAULT_TEAM_PROFILES = {
         "role": "Architect",
         "model": "Codex GPT-5.5",
         "specialty": "Own architecture, data flow, repo fit, API boundaries, migrations, and implementation feasibility.",
-        "trigger_tags": ["architecture", "architect", "schema", "database", "migration", "api", "data flow", "架構", "資料流"],
+        "trigger_tags": [
+            "architecture",
+            "architect",
+            "schema",
+            "database",
+            "migration",
+            "api design",
+            "api boundary",
+            "endpoint design",
+            "data flow",
+            "架構",
+            "資料流",
+        ],
         "rank": 1,
         "responsibilities": ["Check system boundaries.", "Keep changes aligned with repo patterns."],
         "avoid": ["Do not become the only reviewer for code you designed."],
         "output_contract": "Explain recommended architecture and the tradeoffs.",
+    },
+    "codex-architecture-reviewer": {
+        "base": "codex",
+        "name": "codex-architecture-reviewer",
+        "label": "Codex Architecture Reviewer",
+        "role": "Architecture Reviewer",
+        "model": "Codex GPT-5.5",
+        "specialty": "Review architecture, migrations, repo patterns, implementation feasibility, and integration fit.",
+        "trigger_tags": [
+            "architecture review",
+            "implementation review",
+            "repo pattern",
+            "migration review",
+            "feasibility",
+            "架構審查",
+            "資料庫遷移",
+            "實作可行性",
+        ],
+        "rank": 2,
+        "responsibilities": [
+            "Check whether a plan fits the existing repo and implementation path.",
+            "Call out migration, data-flow, and abstraction risks with concrete alternatives.",
+        ],
+        "avoid": ["Do not replace Claude Reviewer for product-risk and bug-review breadth."],
+        "output_contract": "Find architecture and feasibility risks first, then recommend the smallest reliable implementation path.",
     },
     "codex-builder": {
         "base": "codex",
@@ -99,24 +180,51 @@ DEFAULT_TEAM_PROFILES = {
         "output_contract": "Findings first, ordered by severity, with test gaps and residual risk.",
     },
     "gemini-researcher": {
-        "base": "gemini",
+        "base": "antigravity",
         "name": "gemini-researcher",
         "label": "Gemini Researcher",
         "role": "Researcher",
-        "model": "Gemini 3.5 Flash",
-        "specialty": "Scan large context, compare documents, find contradictions, and summarise evidence quickly.",
-        "trigger_tags": ["research", "docs", "compare", "scan", "summarize", "context", "legacy", "文件", "整理", "研究", "大量"],
+        "model": "Gemini 3.5 Flash (High)",
+        "specialty": "Scan large context and web/current sources for laws, official API docs, policy changes, contradictions, and evidence.",
+        "trigger_tags": [
+            "research",
+            "web research",
+            "official docs",
+            "api docs",
+            "regulation",
+            "law",
+            "latest",
+            "rate limit",
+            "docs",
+            "compare",
+            "scan",
+            "summarize",
+            "context",
+            "legacy",
+            "官方文件",
+            "法規",
+            "法律",
+            "最新",
+            "文件",
+            "整理",
+            "研究",
+            "大量",
+        ],
         "rank": 1,
-        "responsibilities": ["Collect evidence and cite where it came from.", "Surface missing context before planning."],
+        "responsibilities": [
+            "Collect evidence and cite where it came from.",
+            "Prefer primary sources such as official API docs, laws, standards, and release notes.",
+            "Surface missing context before planning.",
+        ],
         "avoid": ["Do not be final authority for production code changes."],
         "output_contract": "Summarise evidence, gaps, and recommended next checks.",
     },
     "gemini-challenger": {
-        "base": "gemini",
+        "base": "antigravity",
         "name": "gemini-challenger",
         "label": "Gemini Challenger",
         "role": "Red Team",
-        "model": "Gemini 3.5 Flash",
+        "model": "Gemini 3.5 Flash (High)",
         "specialty": "Challenge assumptions, scan for edge cases, security risk, permission mistakes, and spec gaps.",
         "trigger_tags": ["red team", "challenge", "risk", "edge case", "security", "漏洞", "風險", "權限", "矛盾"],
         "rank": 2,
@@ -124,15 +232,66 @@ DEFAULT_TEAM_PROFILES = {
         "avoid": ["Do not repeat the main reviewer; bring an independent angle."],
         "output_contract": "List the highest-risk breakpoints and concrete mitigations.",
     },
+    "codex-challenger": {
+        "base": "codex",
+        "name": "codex-challenger",
+        "label": "Codex Challenger",
+        "role": "Engineering Challenger",
+        "model": "Codex GPT-5.5",
+        "specialty": "Challenge engineering plans for feasibility, migration safety, repo-pattern drift, overengineering, and test strategy.",
+        "trigger_tags": [
+            "engineering risk",
+            "migration risk",
+            "overengineering",
+            "repo pattern",
+            "smaller path",
+            "feasibility",
+            "可行性",
+            "過度設計",
+            "遷移風險",
+        ],
+        "rank": 2,
+        "responsibilities": [
+            "Pressure-test the implementation path before work starts.",
+            "Suggest smaller, safer alternatives when a plan is too risky.",
+        ],
+        "avoid": ["Do not duplicate Gemini Challenger's broad spec/context challenge."],
+        "output_contract": "List the engineering breakpoints, why they matter, and the safer implementation path.",
+    },
+    "gemini-prototyper": {
+        "base": "antigravity",
+        "name": "gemini-prototyper",
+        "label": "Gemini Prototyper",
+        "role": "Prototyper",
+        "model": "Gemini 3.5 Flash (High)",
+        "specialty": "Create context-heavy UI drafts, multi-option prototypes, and document/spec-to-demo explorations.",
+        "trigger_tags": [
+            "prototype from docs",
+            "ui prototype",
+            "context prototype",
+            "multi-option",
+            "wireframe",
+            "草案",
+            "多方案",
+            "文件轉原型",
+        ],
+        "rank": 2,
+        "responsibilities": [
+            "Explore quick UI or workflow prototype options from large context.",
+            "Keep outputs explicitly exploratory and ready for production handoff.",
+        ],
+        "avoid": ["Do not own final production merge or final architecture."],
+        "output_contract": "Show the prototype direction, compared options, assumptions, and what Codex Builder should productionise.",
+    },
     "grok-prototyper": {
         "base": "grok",
         "name": "grok-prototyper",
         "label": "Grok Prototyper",
-        "role": "Builder",
+        "role": "Prototyper",
         "model": "Grok Build",
         "specialty": "Build quick prototypes, spikes, demos, and alternate implementation drafts for low-risk exploration.",
         "trigger_tags": ["prototype", "spike", "demo", "quick", "experiment", "alternative", "grok", "原型", "快速"],
-        "rank": 3,
+        "rank": 1,
         "responsibilities": ["Move fast on exploratory work.", "Keep prototypes isolated and easy to discard."],
         "avoid": ["Do not own final architecture or final review."],
         "output_contract": "Show what was tried, what worked, and what should be productionised by the main builder.",
@@ -150,12 +309,30 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
         if profile["base"] not in agents_config:
             continue
         profile = {"runtime_policy": NONBLOCKING_RUNTIME_POLICY, **profile}
-        updated = store.upsert_profile(profile_id, profile, preserve_existing=True)
+        force_fields = ["base"]
+        existing = store.get(profile_id) or {}
+        for field, legacy_values in LEGACY_FIELD_MIGRATIONS.get(profile_id, {}).items():
+            existing_value = existing.get(field)
+            if any(_legacy_value_matches(existing_value, legacy_value) for legacy_value in legacy_values):
+                force_fields.append(field)
+        updated = store.upsert_profile(profile_id, profile, preserve_existing=True, force_fields=force_fields)
         if updated:
             seeded[profile_id] = updated
 
     _seed_roles_file(data_path / "roles.json", seeded)
     return seeded
+
+
+def _legacy_value_matches(existing_value, legacy_value) -> bool:
+    if isinstance(existing_value, str):
+        existing_value = existing_value.strip()
+    if isinstance(legacy_value, str):
+        legacy_value = legacy_value.strip()
+    if isinstance(existing_value, list):
+        existing_value = tuple(existing_value)
+    if isinstance(legacy_value, list):
+        legacy_value = tuple(legacy_value)
+    return existing_value == legacy_value
 
 
 def _seed_roles_file(path: Path, profiles: dict[str, dict]) -> None:
@@ -170,7 +347,7 @@ def _seed_roles_file(path: Path, profiles: dict[str, dict]) -> None:
     for profile in profiles.values():
         name = str(profile.get("name", "")).strip()
         role = str(profile.get("role", "")).strip()
-        if name and role and not roles.get(name):
+        if name and role and roles.get(name) != role:
             roles[name] = role
             changed = True
 

@@ -1,6 +1,7 @@
 import unittest
 
 from dispatcher import select_dispatch_targets
+from team_config import DEFAULT_TEAM_PROFILES
 
 
 PROFILES = {
@@ -22,6 +23,18 @@ PROFILES = {
         "trigger_tags": ["architecture", "migration", "schema", "資料流"],
         "rank": 1,
     },
+    "codex-architecture-reviewer": {
+        "name": "codex-architecture-reviewer",
+        "role": "Architecture Reviewer",
+        "trigger_tags": ["architecture review", "implementation review", "repo pattern", "migration review", "feasibility"],
+        "rank": 2,
+    },
+    "codex-challenger": {
+        "name": "codex-challenger",
+        "role": "Engineering Challenger",
+        "trigger_tags": ["engineering risk", "migration risk", "overengineering", "repo pattern", "smaller path"],
+        "rank": 2,
+    },
     "claude-designer": {
         "name": "claude-designer",
         "role": "Designer",
@@ -40,9 +53,21 @@ PROFILES = {
         "trigger_tags": ["risk", "edge case", "security", "風險"],
         "rank": 1,
     },
+    "gemini-researcher": {
+        "name": "gemini-researcher",
+        "role": "Researcher",
+        "trigger_tags": ["research", "docs", "官方文件", "法規", "api docs", "最新"],
+        "rank": 1,
+    },
+    "gemini-prototyper": {
+        "name": "gemini-prototyper",
+        "role": "Prototyper",
+        "trigger_tags": ["prototype from docs", "ui prototype", "context prototype", "multi-option", "草案"],
+        "rank": 2,
+    },
     "grok-prototyper": {
         "name": "grok-prototyper",
-        "role": "Builder",
+        "role": "Prototyper",
         "trigger_tags": ["prototype", "spike", "demo"],
         "rank": 3,
     },
@@ -81,6 +106,67 @@ class DispatcherSelectionTests(unittest.TestCase):
 
         self.assertEqual(targets[0], "claude-reviewer")
         self.assertIn("gemini-challenger", targets[:3])
+
+    def test_architecture_review_adds_codex_architecture_reviewer(self):
+        targets = select_dispatch_targets(
+            "review this migration for repo pattern, implementation feasibility, and architecture review",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_targets=3,
+        )
+
+        self.assertIn("claude-reviewer", targets)
+        self.assertIn("codex-architecture-reviewer", targets)
+
+    def test_engineering_challenge_selects_codex_challenger(self):
+        targets = select_dispatch_targets(
+            "challenge this migration plan for overengineering, repo pattern, migration risk, and smaller path",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_targets=3,
+        )
+
+        self.assertEqual(targets[0], "codex-challenger")
+
+    def test_context_ui_prototype_selects_gemini_prototyper(self):
+        targets = select_dispatch_targets(
+            "make a UI prototype from docs and context, with multi-option草案",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_targets=4,
+        )
+
+        self.assertIn("gemini-prototyper", targets)
+
+    def test_web_api_regulation_research_selects_gemini_researcher(self):
+        targets = select_dispatch_targets(
+            "請查最新法規、官方 API 文件和 rate limit 變更",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_targets=3,
+        )
+
+        self.assertEqual(targets[0], "gemini-researcher")
+
+    def test_generic_prototype_does_not_false_match_ui_or_pr_keywords(self):
+        targets = select_dispatch_targets(
+            "make a quick prototype spike demo",
+            DEFAULT_TEAM_PROFILES,
+            active_names=list(DEFAULT_TEAM_PROFILES),
+            max_targets=3,
+        )
+
+        self.assertEqual(targets, ["grok-prototyper"])
+
+    def test_api_docs_research_does_not_pull_architecture_reviewers(self):
+        targets = select_dispatch_targets(
+            "請查最新法規、官方 API 文件和 rate limit 變更",
+            DEFAULT_TEAM_PROFILES,
+            active_names=list(DEFAULT_TEAM_PROFILES),
+            max_targets=3,
+        )
+
+        self.assertEqual(targets, ["gemini-researcher"])
 
     def test_unclear_task_falls_back_to_dispatcher(self):
         targets = select_dispatch_targets(

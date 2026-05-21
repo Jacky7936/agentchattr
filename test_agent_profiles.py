@@ -11,6 +11,7 @@ AGENTS = {
     "codex": {"label": "Codex", "color": "#10a37f"},
     "claude": {"label": "Claude", "color": "#da7756"},
     "gemini": {"label": "Gemini", "color": "#4285f4"},
+    "antigravity": {"label": "Antigravity", "color": "#7c3aed"},
     "grok": {"label": "Grok Build", "color": "#06b6d4"},
 }
 
@@ -204,12 +205,196 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertIn("codex-dispatcher", profiles)
             self.assertIn("gemini-researcher", profiles)
             self.assertIn("gemini-challenger", profiles)
+            self.assertIn("codex-architecture-reviewer", profiles)
+            self.assertIn("codex-challenger", profiles)
+            self.assertIn("gemini-prototyper", profiles)
             self.assertIn("grok-prototyper", profiles)
             self.assertEqual(profiles["codex-dispatcher"]["role"], "Dispatcher")
+            self.assertEqual(profiles["codex-architecture-reviewer"]["base"], "codex")
+            self.assertEqual(profiles["codex-architecture-reviewer"]["role"], "Architecture Reviewer")
+            self.assertEqual(profiles["codex-challenger"]["role"], "Engineering Challenger")
+            self.assertEqual(profiles["gemini-researcher"]["base"], "antigravity")
+            self.assertEqual(profiles["gemini-researcher"]["model"], "Gemini 3.5 Flash (High)")
+            self.assertIn("法規", profiles["gemini-researcher"]["trigger_tags"])
+            self.assertIn("api docs", profiles["gemini-researcher"]["trigger_tags"])
+            self.assertIn("official docs", profiles["gemini-researcher"]["trigger_tags"])
+            self.assertEqual(profiles["gemini-challenger"]["base"], "antigravity")
+            self.assertEqual(profiles["gemini-challenger"]["model"], "Gemini 3.5 Flash (High)")
+            self.assertEqual(profiles["gemini-prototyper"]["base"], "antigravity")
+            self.assertEqual(profiles["gemini-prototyper"]["model"], "Gemini 3.5 Flash (High)")
+            self.assertEqual(profiles["gemini-prototyper"]["role"], "Prototyper")
+            self.assertEqual(profiles["grok-prototyper"]["role"], "Prototyper")
             self.assertEqual(profiles["claude-reviewer"]["role"], "My Custom Reviewer")
             self.assertEqual(profiles["claude-reviewer"]["model"], "Custom Claude Model")
             self.assertIn("trigger_tags", profiles["claude-reviewer"])
             self.assertIn("auto-approval mode", profiles["claude-reviewer"]["runtime_policy"])
+
+    def test_default_team_migrates_gemini_profiles_to_antigravity_runtime(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "gemini-researcher": {
+                            "base": "gemini",
+                            "name": "gemini-researcher",
+                            "label": "Gemini Researcher",
+                            "role": "Researcher",
+                            "model": "Gemini 3.5 Flash",
+                        }
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            store = AgentProfileStore(profiles_path, AGENTS)
+            profile = store.get("gemini-researcher")
+            self.assertEqual(profile["base"], "antigravity")
+            self.assertEqual(profile["model"], "Gemini 3.5 Flash (High)")
+
+    def test_default_team_preserves_custom_gemini_model_when_migrating_runtime(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "gemini-researcher": {
+                            "base": "gemini",
+                            "name": "gemini-researcher",
+                            "label": "Gemini Researcher",
+                            "role": "Researcher",
+                            "model": "Custom Gemini Model",
+                        }
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            store = AgentProfileStore(profiles_path, AGENTS)
+            profile = store.get("gemini-researcher")
+            self.assertEqual(profile["base"], "antigravity")
+            self.assertEqual(profile["model"], "Custom Gemini Model")
+
+    def test_default_team_migrates_grok_prototyper_legacy_builder_role(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "grok-prototyper": {
+                            "base": "grok",
+                            "name": "grok-prototyper",
+                            "label": "Grok Prototyper",
+                            "role": "Builder",
+                            "model": "Grok Build",
+                        }
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            store = AgentProfileStore(profiles_path, AGENTS)
+            profile = store.get("grok-prototyper")
+            self.assertEqual(profile["role"], "Prototyper")
+
+    def test_default_team_syncs_roles_file_when_legacy_role_is_migrated(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            (data_dir / "roles.json").write_text(
+                json.dumps({"grok-prototyper": "Builder"}),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            roles = json.loads((data_dir / "roles.json").read_text("utf-8"))
+            self.assertEqual(roles["grok-prototyper"], "Prototyper")
+
+    def test_default_team_migrates_legacy_research_and_architect_metadata(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "codex-architect": {
+                            "base": "codex",
+                            "name": "codex-architect",
+                            "label": "Codex Architect",
+                            "role": "Architect",
+                            "trigger_tags": [
+                                "architecture",
+                                "architect",
+                                "schema",
+                                "database",
+                                "migration",
+                                "api",
+                                "data flow",
+                                "架構",
+                                "資料流",
+                            ],
+                        },
+                        "gemini-researcher": {
+                            "base": "antigravity",
+                            "name": "gemini-researcher",
+                            "label": "Gemini Researcher",
+                            "role": "Researcher",
+                            "model": "Gemini 3.5 Flash (High)",
+                            "specialty": "Scan large context, compare documents, find contradictions, and summarise evidence quickly.",
+                            "trigger_tags": [
+                                "research",
+                                "docs",
+                                "compare",
+                                "scan",
+                                "summarize",
+                                "context",
+                                "legacy",
+                                "文件",
+                                "整理",
+                                "研究",
+                                "大量",
+                            ],
+                            "responsibilities": [
+                                "Collect evidence and cite where it came from.",
+                                "Surface missing context before planning.",
+                            ],
+                        },
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            profiles = AgentProfileStore(profiles_path, AGENTS).get_all()
+            self.assertNotIn("api", profiles["codex-architect"]["trigger_tags"])
+            self.assertIn("api design", profiles["codex-architect"]["trigger_tags"])
+            self.assertIn("web/current sources", profiles["gemini-researcher"]["specialty"])
+            self.assertIn("official docs", profiles["gemini-researcher"]["trigger_tags"])
+            self.assertIn("法規", profiles["gemini-researcher"]["trigger_tags"])
+            self.assertIn(
+                "Prefer primary sources such as official API docs, laws, standards, and release notes.",
+                profiles["gemini-researcher"]["responsibilities"],
+            )
 
 
 if __name__ == "__main__":

@@ -12,12 +12,46 @@ ROLE_KEYWORDS = {
     "dispatcher": ["dispatch", "triage", "route", "assign", "who", "誰", "不確定", "派誰"],
     "planner": ["plan", "planning", "roadmap", "scope", "requirements", "spec", "規劃", "計畫", "計劃", "需求"],
     "designer": ["ui", "ux", "design", "layout", "wireframe", "mockup", "pencil", "visual", "設計", "畫面", "介面"],
-    "architect": ["architecture", "schema", "database", "migration", "api", "boundary", "data flow", "架構", "資料流"],
+    "architect": [
+        "architecture",
+        "schema",
+        "database",
+        "migration",
+        "api design",
+        "api boundary",
+        "endpoint design",
+        "boundary",
+        "data flow",
+        "架構",
+        "資料流",
+    ],
     "builder": ["implement", "build", "fix", "code", "frontend", "backend", "test", "實作", "修", "修正"],
     "reviewer": ["review", "bug", "regression", "test", "maintainability", "pr", "檢查", "審查", "測試"],
-    "researcher": ["research", "docs", "compare", "scan", "summarize", "context", "legacy", "文件", "整理", "研究"],
+    "researcher": [
+        "research",
+        "web research",
+        "docs",
+        "official docs",
+        "api docs",
+        "regulation",
+        "law",
+        "latest",
+        "compare",
+        "scan",
+        "summarize",
+        "context",
+        "legacy",
+        "官方文件",
+        "法規",
+        "法律",
+        "最新",
+        "文件",
+        "整理",
+        "研究",
+    ],
     "red team": ["red team", "challenge", "risk", "security", "edge case", "abuse", "漏洞", "風險", "權限"],
     "challenger": ["challenge", "risk", "edge case", "contradiction", "反方", "風險", "矛盾"],
+    "prototyper": ["prototype", "spike", "demo", "wireframe", "草案", "原型", "多方案"],
 }
 
 
@@ -71,14 +105,14 @@ def _score_profile(text: str, profile: dict) -> int:
 
     for tag in _string_list(profile.get("trigger_tags")):
         tag_text = _normalize_text(tag)
-        if tag_text and tag_text in haystack:
+        if tag_text and _contains_term(haystack, tag_text):
             score += 12 + min(len(tag_text), 8)
 
     role = _normalize_text(str(profile.get("role", "")))
     for role_name, keywords in ROLE_KEYWORDS.items():
         if role_name in role:
             for keyword in keywords:
-                if _normalize_text(keyword) in haystack:
+                if _contains_term(haystack, _normalize_text(keyword)):
                     score += 10
     if "reviewer" in role and any(word in haystack for word in ("review", "審查", "檢查")):
         score += 12
@@ -98,7 +132,7 @@ def _score_profile(text: str, profile: dict) -> int:
 
 def _has_trigger_tag(text: str, profile: dict) -> bool:
     haystack = _normalize_text(text)
-    return any(_normalize_text(tag) in haystack for tag in _string_list(profile.get("trigger_tags")))
+    return any(_contains_term(haystack, _normalize_text(tag)) for tag in _string_list(profile.get("trigger_tags")))
 
 
 def _prune_same_role_candidates(candidates: list[dict]) -> list[dict]:
@@ -152,6 +186,20 @@ def _string_list(value) -> list[str]:
 
 def _normalize_text(value: str) -> str:
     return str(value).casefold()
+
+
+def _contains_term(haystack: str, term: str) -> bool:
+    if not term:
+        return False
+    if not _is_ascii_word_term(term):
+        return term in haystack
+    plural_suffix = "s?" if term[-1:].isalpha() and not term.endswith("s") else ""
+    pattern = rf"(?<![a-z0-9_-]){re.escape(term)}{plural_suffix}(?![a-z0-9_-])"
+    return re.search(pattern, haystack) is not None
+
+
+def _is_ascii_word_term(value: str) -> bool:
+    return bool(re.fullmatch(r"[a-z0-9][a-z0-9_ -]*", value))
 
 
 def _tokens(value: str) -> set[str]:

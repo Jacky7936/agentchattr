@@ -169,6 +169,7 @@ class AgentProfileStore:
         profile: dict,
         *,
         preserve_existing: bool = True,
+        force_fields: list[str] | None = None,
     ) -> dict | None:
         pid = normalize_profile_id(profile_id)
         if not pid:
@@ -180,6 +181,9 @@ class AgentProfileStore:
             if preserve_existing and pid in self._profiles:
                 existing = self._profiles[pid]
                 merged = dict(existing)
+                for key in force_fields or []:
+                    if key in clean:
+                        merged[key] = clean[key]
                 for key, value in clean.items():
                     if self._is_missing_metadata_value(merged.get(key)):
                         merged[key] = value
