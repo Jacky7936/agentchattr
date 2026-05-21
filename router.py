@@ -192,9 +192,10 @@ class Router:
             return [t for t in targets if self._is_commander(t)]
 
         if active and sender in active:
-            # The active worker may wake the orchestrator to request handoff, but
-            # cannot fan the room out to reviewers or prototypers by mentioning them.
-            return [t for t in targets if self._is_commander(t)]
+            # Active workers may coordinate with peers in the same commander lane
+            # or ask the orchestrator for handoff/status. They still cannot fan
+            # out to standby or unrelated agents.
+            return [t for t in targets if self._is_commander(t) or t in active]
 
         return []
 

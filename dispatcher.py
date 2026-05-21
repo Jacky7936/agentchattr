@@ -28,6 +28,24 @@ ROLE_KEYWORDS = {
     ],
     "builder": ["implement", "build", "fix", "code", "frontend", "backend", "test", "實作", "修", "修正"],
     "reviewer": ["review", "bug", "regression", "test", "maintainability", "pr", "檢查", "審查", "測試"],
+    "qa": [
+        "qa",
+        "quality assurance",
+        "test plan",
+        "regression test",
+        "e2e",
+        "browser qa",
+        "verify fix",
+        "reproduce",
+        "acceptance",
+        "release risk",
+        "測試計畫",
+        "回歸測試",
+        "驗證修復",
+        "重現",
+        "驗收",
+        "品質",
+    ],
     "researcher": [
         "research",
         "web research",
@@ -111,6 +129,8 @@ def _score_profile(text: str, profile: dict) -> int:
 
     role = _normalize_text(str(profile.get("role", "")))
     for role_name, keywords in ROLE_KEYWORDS.items():
+        if role_name == "designer" and "prototype" in role:
+            continue
         if role_name in role:
             for keyword in keywords:
                 if _contains_term(haystack, _normalize_text(keyword)):

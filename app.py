@@ -699,15 +699,19 @@ def _auto_dispatch_prompt(
             f"use mcp to read #{channel}. ROLE: Orchestrator. You are coordinating "
             f"the active worker lane: {worker_text}. Track progress, split work, ask for concise "
             "status updates, and consolidate the result for the human. You may parallel-dispatch "
-            "active workers, but prevent loops: use /handoff @agent, /freeze @agent @agent, "
-            "/standby @agent, /release, and mention only intended active workers."
+            "active workers and let active workers coordinate with each other inside the lane, "
+            "but prevent loops: use /handoff @agent, /freeze @agent @agent, /standby @agent, "
+            "/release, and mention only intended active workers. When the work is complete, "
+            "summarize once for the human, release or narrow the lane, and stop."
         )
     if commander and target in workers:
+        peer_text = ", ".join(f"@{worker}" for worker in workers if worker != target) or "none"
         return (
             f"use mcp to read #{channel} - you were dispatched as an active worker under "
             f"@{commander}. Work only on your role's slice, report progress and blockers back "
-            f"to @{commander}, and do not mention or wake other workers unless the orchestrator "
-            "explicitly hands off."
+            f"to @{commander}, and coordinate only with active lane peers when it is necessary: "
+            f"{peer_text}. Do not mention or wake agents outside the active lane. When your slice "
+            "is done, report done/blockers once and stop."
         )
     return (
         f"use mcp to read #{channel} - you were auto-dispatched because your "
@@ -792,7 +796,9 @@ async def _trigger_commander_targets(targets: list[str], sender: str, text: str,
         prompt = (
             f"use mcp to read #{channel}. Commander lock is active and the active worker lane is "
             f"{active_text}. @{target}, respond with your assigned handoff/status. Do not mention "
-            "or wake other agents unless the orchestrator or human explicitly hands off."
+            "or wake agents outside the active lane unless the orchestrator or human explicitly "
+            "hands off. Coordinate with active lane peers only when useful, then report done or "
+            "blocked once and stop."
         )
         await agents.trigger(target, message=f"{sender}: {text}", channel=channel, prompt=prompt)
 

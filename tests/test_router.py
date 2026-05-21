@@ -62,48 +62,48 @@ class RouterMentionTests(unittest.TestCase):
 
     def test_commander_lock_supports_parallel_active_agents(self):
         router = Router(
-            ["codex-orchestrator", "codex-builder", "claude-researcher", "claude-reviewer"],
+            ["codex-orchestrator", "codex-builder", "codex-qa", "claude-reviewer"],
             default_mention="all",
         )
         status = router.set_commander_lock(
             "design",
-            active_agents=["codex-builder", "claude-researcher"],
+            active_agents=["codex-builder", "codex-qa"],
             updated_by="codex-orchestrator",
         )
 
-        self.assertEqual(status["active_agents"], ["codex-builder", "claude-researcher"])
+        self.assertEqual(status["active_agents"], ["codex-builder", "codex-qa"])
         self.assertEqual(status["active_agent"], "codex-builder")
         self.assertEqual(
             router.get_targets(
                 "codex-orchestrator",
-                "@codex-builder @claude-researcher @claude-reviewer split work",
+                "@codex-builder @codex-qa @claude-reviewer split work",
                 channel="design",
             ),
-            ["codex-builder", "claude-researcher"],
+            ["codex-builder", "codex-qa"],
         )
         self.assertEqual(
             router.get_targets("Jacky", "please continue", channel="design"),
-            ["codex-builder", "claude-researcher"],
+            ["codex-builder", "codex-qa"],
         )
 
-    def test_parallel_active_agent_can_only_wake_dispatcher(self):
+    def test_parallel_active_agent_can_wake_lane_peer_and_dispatcher_only(self):
         router = Router(
-            ["codex-orchestrator", "codex-builder", "claude-researcher", "claude-reviewer"],
+            ["codex-orchestrator", "codex-builder", "codex-qa", "claude-reviewer"],
             default_mention="none",
         )
         router.set_commander_lock(
             "design",
-            active_agents=["codex-builder", "claude-researcher"],
+            active_agents=["codex-builder", "codex-qa"],
             updated_by="codex-orchestrator",
         )
 
         self.assertEqual(
             router.get_targets(
                 "codex-builder",
-                "@claude-researcher please continue and @codex-orchestrator status",
+                "@codex-qa please continue and @codex-orchestrator status @claude-reviewer wait",
                 channel="design",
             ),
-            ["codex-orchestrator"],
+            ["codex-qa", "codex-orchestrator"],
         )
 
     def test_commander_lock_allows_active_agent_to_wake_dispatcher(self):

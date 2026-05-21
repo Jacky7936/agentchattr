@@ -79,6 +79,7 @@ echo "Configuring model-specialized agent team..."
 
 SERVER_URL="http://192.168.50.201:8300"
 SERVER_CMD="set -a; [ -f .env ] && . ./.env; set +a; printf 'YES\\n' | .venv/bin/python run.py --allow-network"
+AGENT_START_DELAY_SECONDS="${AGENTCHATTR_AGENT_START_DELAY_SECONDS:-5}"
 
 # Detect if running inside a CMux terminal session
 IS_CMUX=0
@@ -152,6 +153,13 @@ start_agent() {
     fi
 }
 
+wait_between_agent_starts() {
+    if [ "${AGENT_START_DELAY_SECONDS:-0}" -gt 0 ] 2>/dev/null; then
+        echo "Waiting ${AGENT_START_DELAY_SECONDS}s before starting the next agent..."
+        sleep "$AGENT_START_DELAY_SECONDS"
+    fi
+}
+
 if [ "$UI_PASSWORD_CREATED" -eq 1 ] && is_server_running; then
     echo "Note: a server is already running on port 8300."
     echo "The new UI password will apply after you run macos-linux/stop_all.sh and start again."
@@ -181,20 +189,21 @@ if ! is_server_running; then
     done
 fi
 
-# 2. 在新終端機視窗中啟動 Codex 主幹團隊 (Bypass 模式)
+# 2. 在新終端機視窗中啟動精簡 Codex 主幹團隊 (Bypass 模式)
 start_agent ".venv/bin/python wrapper.py codex --profile codex-orchestrator --dangerously-bypass-approvals-and-sandbox" "Codex Orchestrator" "data/codex_orchestrator.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-planner --dangerously-bypass-approvals-and-sandbox" "Codex Planner" "data/codex_planner.log"
+wait_between_agent_starts
 start_agent ".venv/bin/python wrapper.py codex --profile codex-builder --dangerously-bypass-approvals-and-sandbox" "Codex Builder" "data/codex_builder.log"
+wait_between_agent_starts
 start_agent ".venv/bin/python wrapper.py codex --profile codex-architect --dangerously-bypass-approvals-and-sandbox" "Codex Architect" "data/codex_architect.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-reviewer --dangerously-bypass-approvals-and-sandbox" "Codex Reviewer" "data/codex_reviewer.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-challenger --dangerously-bypass-approvals-and-sandbox" "Codex Challenger" "data/codex_challenger.log"
-
-# 3. 在新終端機視窗中啟動 review / research / prototype 專門角色
-start_agent ".venv/bin/python wrapper.py claude --profile claude-reviewer --permission-mode auto" "Claude Reviewer" "data/claude_reviewer.log"
-start_agent ".venv/bin/python wrapper.py claude --profile claude-researcher --dangerously-skip-permissions" "Claude Researcher" "data/claude_researcher.log"
-start_agent ".venv/bin/python wrapper.py claude --profile claude-challenger --permission-mode auto" "Claude Challenger" "data/claude_challenger.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-prototyper --dangerously-bypass-approvals-and-sandbox" "Codex Prototyper" "data/codex_prototyper.log"
+wait_between_agent_starts
+start_agent ".venv/bin/python wrapper.py codex --profile codex-qa --dangerously-bypass-approvals-and-sandbox" "Codex QA" "data/codex_qa.log"
+wait_between_agent_starts
 start_agent ".venv/bin/python wrapper.py codex --profile codex-module-prototype-designer --dangerously-bypass-approvals-and-sandbox" "Codex Module Prototype Designer" "data/codex_module_prototype_designer.log"
+wait_between_agent_starts
+
+# 3. 在新終端機視窗中啟動 review 專門角色
+start_agent ".venv/bin/python wrapper.py claude --profile claude-reviewer --permission-mode auto" "Claude Reviewer" "data/claude_reviewer.log"
+wait_between_agent_starts
 
 # 4. 自動開啟瀏覽器聊天介面
 echo "Opening browser to Chat UI..."

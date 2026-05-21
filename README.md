@@ -145,7 +145,10 @@ Set roles from two places: click a **status pill** in the header bar to open a p
 ### Agent profiles
 Use fixed profiles when you want the same lineup to come back with the same names and roles every time. Launch a wrapper with `--profile codex-builder` and the server registers that instance as `@codex-builder`, restores its saved role, and rejects a second live wrapper trying to claim the same profile.
 
-Profiles are stored in `data/agent_profiles.json` as `profile_id -> {base, name, label, role}`. Clicking a status pill to rename an agent or changing its role updates the profile too. The bundled `macos-linux/start_all.sh` uses fixed profiles for `codex-planner`, `codex-builder`, `codex-reviewer`, `codex-architect`, `claude-designer`, `claude-reviewer`, and `claude-researcher`.
+Profiles are stored in `data/agent_profiles.json` as `profile_id -> {base, name, label, role}`. Clicking a status pill to rename an agent or changing its role updates the profile too. The bundled `macos-linux/start_all.sh` uses fixed profiles for `codex-orchestrator`, `codex-builder`, `codex-architect`, `codex-qa`, `codex-module-prototype-designer`, `claude-designer`, and `claude-reviewer`. It waits 5 seconds between agent launches by default; override with `AGENTCHATTR_AGENT_START_DELAY_SECONDS`.
+
+### Agent coordination
+Auto-dispatch routes work through an orchestrator lane when no explicit @mention is present. The orchestrator can run several active workers in parallel with `/freeze @agent @agent` or `/handoff @agent @agent`, move idle workers to `/standby @agent`, and clear the lane with `/release`. Active workers can coordinate with the orchestrator and other active lane peers, but cannot fan out to standby or unrelated agents. Agent-to-agent routing is still bounded by the loop guard, and only a human `/continue` can resume after it pauses.
 
 ### Rules
 Rules set the working style for your agents. Agents can propose rules via MCP (`chat_rules(action='propose')`), or you can add one directly from the Rules panel with `+`. Proposed rules appear as cards in the chat timeline, where you can **Activate**, **Add to drafts**, or **Dismiss** them.

@@ -82,6 +82,30 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
             router.get_commander_status("design")["active_agents"],
         )
         self.assertIn("Commander lock: only @codex-reviewer", store.messages[0]["text"])
+        self.assertIn("active worker lane", agents.triggers[0]["prompt"])
+        self.assertIn("outside the active lane", agents.triggers[0]["prompt"])
+        self.assertIn("report done or blocked once and stop", agents.triggers[0]["prompt"])
+
+    async def test_auto_dispatch_prompts_keep_workers_in_active_lane(self):
+        commander_prompt = chat_app._auto_dispatch_prompt(
+            "general",
+            target="codex-orchestrator",
+            commander="codex-orchestrator",
+            workers=["codex-builder", "codex-qa"],
+        )
+        worker_prompt = chat_app._auto_dispatch_prompt(
+            "general",
+            target="codex-builder",
+            commander="codex-orchestrator",
+            workers=["codex-builder", "codex-qa"],
+        )
+
+        self.assertIn("parallel-dispatch", commander_prompt)
+        self.assertIn("/release", commander_prompt)
+        self.assertIn("stop", commander_prompt)
+        self.assertIn("@codex-qa", worker_prompt)
+        self.assertIn("outside the active lane", worker_prompt)
+        self.assertIn("report done/blockers once and stop", worker_prompt)
 
 
 if __name__ == "__main__":

@@ -23,28 +23,11 @@ PROFILES = {
         "trigger_tags": ["architecture", "migration", "schema", "資料流"],
         "rank": 1,
     },
-    "codex-reviewer": {
-        "name": "codex-reviewer",
-        "role": "Reviewer",
-        "trigger_tags": [
-            "architecture review",
-            "code review",
-            "patch review",
-            "regression",
-            "test",
-            "verification",
-            "repo pattern",
-            "migration review",
-            "feasibility",
-            "程式審查",
-        ],
-        "rank": 2,
-    },
-    "codex-challenger": {
-        "name": "codex-challenger",
-        "role": "Engineering Challenger",
-        "trigger_tags": ["engineering risk", "migration risk", "overengineering", "repo pattern", "smaller path"],
-        "rank": 2,
+    "codex-qa": {
+        "name": "codex-qa",
+        "role": "QA Engineer",
+        "trigger_tags": ["qa", "regression test", "e2e", "browser qa", "verify fix", "reproduce", "驗收"],
+        "rank": 1,
     },
     "claude-designer": {
         "name": "claude-designer",
@@ -58,23 +41,11 @@ PROFILES = {
         "trigger_tags": ["review", "bug", "regression", "測試"],
         "rank": 1,
     },
-    "claude-challenger": {
-        "name": "claude-challenger",
-        "role": "Red Team",
-        "trigger_tags": ["risk", "edge case", "security", "風險"],
+    "codex-module-prototype-designer": {
+        "name": "codex-module-prototype-designer",
+        "role": "Module Prototype Designer",
+        "trigger_tags": ["module prototype", "ui prototype", "prototype", "spike", "demo", "草案"],
         "rank": 1,
-    },
-    "claude-researcher": {
-        "name": "claude-researcher",
-        "role": "Researcher",
-        "trigger_tags": ["research", "docs", "官方文件", "法規", "api docs", "最新"],
-        "rank": 1,
-    },
-    "codex-prototyper": {
-        "name": "codex-prototyper",
-        "role": "Prototyper",
-        "trigger_tags": ["prototype from docs", "ui prototype", "context prototype", "multi-option", "草案"],
-        "rank": 2,
     },
 }
 
@@ -104,7 +75,7 @@ class DispatcherSelectionTests(unittest.TestCase):
 
     def test_commander_dispatch_plan_limits_parallel_workers(self):
         plan = plan_orchestrator_dispatch(
-            "review this migration for bugs, risk, edge cases, tests, and verification gaps",
+            "review this migration for bugs, regression tests, verify fix, and release risk",
             PROFILES,
             active_names=list(PROFILES),
             max_workers=2,
@@ -125,29 +96,28 @@ class DispatcherSelectionTests(unittest.TestCase):
         self.assertEqual(plan["orchestrator"], "")
         self.assertEqual(plan["targets"], ["claude-designer", "codex-builder"])
 
-    def test_specialized_same_role_agent_only_joins_when_its_tags_match(self):
+    def test_review_task_selects_reviewer_and_qa(self):
         targets = select_dispatch_targets(
-            "build a quick prototype spike for this alternative UI",
-            PROFILES,
-            active_names=list(PROFILES),
-            max_targets=4,
-        )
-
-        self.assertIn("codex-prototyper", targets)
-
-    def test_review_task_selects_reviewer_and_challenger(self):
-        targets = select_dispatch_targets(
-            "review this migration for bugs, risk, and edge cases",
+            "review this migration for bugs, regression tests, verify fix, and release risk",
             PROFILES,
             active_names=list(PROFILES),
             max_targets=3,
         )
 
         self.assertEqual(targets[0], "claude-reviewer")
-        self.assertIn("claude-challenger", targets[:3])
-        self.assertNotIn("codex-reviewer", targets)
+        self.assertIn("codex-qa", targets[:3])
 
-    def test_code_review_adds_codex_xhigh_reviewer_as_second_opinion(self):
+    def test_explicit_qa_verification_selects_codex_qa_first(self):
+        targets = select_dispatch_targets(
+            "QA verify fix with browser qa, e2e, and acceptance checks",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_targets=3,
+        )
+
+        self.assertEqual(targets[0], "codex-qa")
+
+    def test_code_review_uses_single_reviewer_without_retired_codex_reviewer(self):
         targets = select_dispatch_targets(
             "code review this patch for tests, regressions, and verification gaps",
             PROFILES,
@@ -156,38 +126,7 @@ class DispatcherSelectionTests(unittest.TestCase):
         )
 
         self.assertIn("claude-reviewer", targets)
-        self.assertIn("codex-reviewer", targets)
-
-    def test_architecture_review_adds_codex_xhigh_reviewer(self):
-        targets = select_dispatch_targets(
-            "review this migration for repo pattern, implementation feasibility, and architecture review",
-            PROFILES,
-            active_names=list(PROFILES),
-            max_targets=3,
-        )
-
-        self.assertIn("claude-reviewer", targets)
-        self.assertIn("codex-reviewer", targets)
-
-    def test_engineering_challenge_selects_codex_challenger(self):
-        targets = select_dispatch_targets(
-            "challenge this migration plan for overengineering, repo pattern, migration risk, and smaller path",
-            PROFILES,
-            active_names=list(PROFILES),
-            max_targets=3,
-        )
-
-        self.assertEqual(targets[0], "codex-challenger")
-
-    def test_context_ui_prototype_selects_codex_prototyper(self):
-        targets = select_dispatch_targets(
-            "make a UI prototype from docs and context, with multi-option草案",
-            PROFILES,
-            active_names=list(PROFILES),
-            max_targets=4,
-        )
-
-        self.assertIn("codex-prototyper", targets)
+        self.assertNotIn("codex-reviewer", targets)
 
     def test_module_ui_prototype_selects_module_prototype_designer(self):
         targets = select_dispatch_targets(
@@ -199,17 +138,7 @@ class DispatcherSelectionTests(unittest.TestCase):
 
         self.assertIn("codex-module-prototype-designer", targets)
 
-    def test_web_api_regulation_research_selects_claude_researcher(self):
-        targets = select_dispatch_targets(
-            "請查最新法規、官方 API 文件和 rate limit 變更",
-            PROFILES,
-            active_names=list(PROFILES),
-            max_targets=3,
-        )
-
-        self.assertEqual(targets[0], "claude-researcher")
-
-    def test_generic_prototype_does_not_false_match_ui_or_pr_keywords(self):
+    def test_generic_prototype_rolls_into_module_prototype_designer(self):
         targets = select_dispatch_targets(
             "make a quick prototype spike demo",
             DEFAULT_TEAM_PROFILES,
@@ -217,9 +146,9 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=3,
         )
 
-        self.assertEqual(targets, ["codex-prototyper"])
+        self.assertEqual(targets, ["codex-module-prototype-designer"])
 
-    def test_api_docs_research_does_not_pull_architecture_reviewers(self):
+    def test_research_without_active_researcher_falls_back_to_orchestrator(self):
         targets = select_dispatch_targets(
             "請查最新法規、官方 API 文件和 rate limit 變更",
             DEFAULT_TEAM_PROFILES,
@@ -227,7 +156,7 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=3,
         )
 
-        self.assertEqual(targets, ["claude-researcher"])
+        self.assertEqual(targets, ["codex-orchestrator"])
 
     def test_unclear_task_falls_back_to_dispatcher(self):
         targets = select_dispatch_targets(
