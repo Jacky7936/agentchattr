@@ -2104,7 +2104,7 @@ function showToast(message, type = 'info') {
 }
 
 async function stopAllAgents() {
-    const ok = confirm('Stop all running agents? The chat server will stay open.');
+    const ok = confirm('Ask all running agents to stop their current work? They will stay registered.');
     if (!ok) return;
 
     const btn = document.getElementById('stop-agents-btn');
@@ -2118,8 +2118,8 @@ async function stopAllAgents() {
         if (!resp.ok) {
             throw new Error(data.error || `HTTP ${resp.status}`);
         }
-        const stopped = Array.isArray(data.deregistered) ? data.deregistered.length : 0;
-        showToast(`Stopped ${stopped} agent${stopped === 1 ? '' : 's'}.`, 'success');
+        const requested = Array.isArray(data.requested) ? data.requested.length : 0;
+        showToast(`Stop command sent to ${requested} agent${requested === 1 ? '' : 's'}.`, 'success');
     } catch (err) {
         showToast(`Failed to stop agents: ${err.message}`, 'error');
     } finally {
@@ -2245,8 +2245,8 @@ const SLASH_COMMANDS = [
     { cmd: '/poetry sonnet', desc: 'Agents write a sonnet about the codebase', broadcast: true },
     { cmd: '/summary', desc: 'Summarize recent messages — tag an agent (e.g. /summary @claude)', broadcast: false, needsMention: true },
     { cmd: '/summarise', desc: 'Summarize recent messages — tag an agent (e.g. /summarise @claude)', broadcast: false, needsMention: true, hidden: true },
-    { cmd: '/freeze', desc: 'Commander lock — only tagged agent may advance routing', broadcast: false, needsMention: true },
-    { cmd: '/handoff', desc: 'Move commander lock to tagged agent', broadcast: false, needsMention: true },
+    { cmd: '/freeze', desc: 'Commander lock — only tagged active agents may advance routing', broadcast: false, needsMention: true },
+    { cmd: '/handoff', desc: 'Move commander lock to tagged active agents', broadcast: false, needsMention: true },
     { cmd: '/standby', desc: 'Put tagged agent on standby', broadcast: false, needsMention: true },
     { cmd: '/release', desc: 'Clear commander lock', broadcast: false },
     { cmd: '/commander', desc: 'Show commander lock status', broadcast: false },

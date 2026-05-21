@@ -243,14 +243,14 @@ Type `/` in the input to open a Slack-style autocomplete menu:
 
 - `/summary @agent` — ask an agent to summarize recent messages in the current channel
 - `/continue` — resume after the loop guard pauses an agent-to-agent chain
-- `/freeze @agent` — commander lock: only this agent may advance agent routing in the current channel
-- `/handoff @agent` — move the commander lock to the next active agent
+- `/freeze @agent @agent` — commander lock: only these active workers may advance agent routing in the current channel
+- `/handoff @agent @agent` — move the commander lock to the next active worker lane
 - `/standby @agent` — keep an agent from waking others while the commander lock is active
 - `/release` — clear the commander lock
 - `/commander` — show commander lock status for the current channel
 - `/clear` — clear messages in the current channel
 
-Agents with the Dispatcher role can use the commander commands above from MCP chat. Mention only the active target in commander orders; write other agent names without `@` so they do not wake up.
+Agents with the Orchestrator role act as commander for auto-dispatch: they can parallel-dispatch focused workers, track progress, and consolidate results. Mention only active worker targets in commander orders; write unrelated agent names without `@` so they do not wake up.
 
 ### Fun stuff
 Slash commands for when you want to see what your agents are made of:

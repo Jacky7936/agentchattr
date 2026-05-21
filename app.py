@@ -3,8 +3,6 @@
 import asyncio
 import json
 import re as _re
-import shutil
-import subprocess
 import sys
 import threading
 import uuid
@@ -25,7 +23,7 @@ from router import Router
 from agents import AgentTrigger
 from registry import RuntimeRegistry
 from agent_profiles import AgentProfileStore, normalize_profile_id
-from dispatcher import select_dispatch_targets
+from dispatcher import plan_orchestrator_dispatch
 from session_store import SessionStore, validate_session_template
 from session_engine import SessionEngine
 
@@ -675,19 +673,42 @@ def _should_auto_dispatch(sender: str, text: str, msg_type: str, stripped: str, 
     )
 
 
-def _select_auto_dispatch_targets(text: str) -> list[str]:
+def _select_auto_dispatch_plan(text: str) -> dict[str, object]:
     if not agent_profiles:
-        return []
+        return {"orchestrator": "", "commander": "", "workers": [], "targets": []}
     active_names = registry.get_active_names() if registry else None
-    return select_dispatch_targets(
+    return plan_orchestrator_dispatch(
         text,
         agent_profiles.get_all(),
         active_names=active_names,
-        max_targets=_routing_int("auto_dispatch_max_targets", 3),
+        max_workers=_routing_int("auto_dispatch_max_targets", 3),
     )
 
 
-def _auto_dispatch_prompt(channel: str) -> str:
+def _auto_dispatch_prompt(
+    channel: str,
+    *,
+    target: str = "",
+    commander: str = "",
+    workers: list[str] | None = None,
+) -> str:
+    workers = workers or []
+    if commander and target == commander:
+        worker_text = ", ".join(f"@{worker}" for worker in workers) or "none"
+        return (
+            f"use mcp to read #{channel}. ROLE: Orchestrator. You are coordinating "
+            f"the active worker lane: {worker_text}. Track progress, split work, ask for concise "
+            "status updates, and consolidate the result for the human. You may parallel-dispatch "
+            "active workers, but prevent loops: use /handoff @agent, /freeze @agent @agent, "
+            "/standby @agent, /release, and mention only intended active workers."
+        )
+    if commander and target in workers:
+        return (
+            f"use mcp to read #{channel} - you were dispatched as an active worker under "
+            f"@{commander}. Work only on your role's slice, report progress and blockers back "
+            f"to @{commander}, and do not mention or wake other workers unless the orchestrator "
+            "explicitly hands off."
+        )
     return (
         f"use mcp to read #{channel} - you were auto-dispatched because your "
         "profile role/specialty matches the latest user task. Take appropriate "
@@ -717,12 +738,12 @@ def _is_commander_sender(sender: str) -> bool:
     username = normalize_profile_id(room_settings.get("username", "user"))
     if clean == username:
         return True
-    if clean == "dispatcher" or clean.endswith("-dispatcher"):
+    if clean in ("dispatcher", "orchestrator") or clean.endswith(("-dispatcher", "-orchestrator")):
         return True
     if agent_profiles:
         profile = agent_profiles.get_by_name(clean)
         role = str((profile or {}).get("role", "")).strip().lower()
-        if role == "dispatcher":
+        if role in ("dispatcher", "orchestrator"):
             return True
     return False
 
@@ -743,21 +764,30 @@ def _resolve_control_targets(text: str) -> list[str]:
 
 def _control_status_text(channel: str) -> str:
     status = router.get_commander_status(channel) if router else {}
-    active = status.get("active_agent") or "none"
+    active_names = status.get("active_agents") or ([status.get("active_agent")] if status.get("active_agent") else [])
+    active = ", ".join(f"@{name}" for name in active_names) or "none"
     standby = ", ".join(f"@{name}" for name in status.get("standby", [])) or "none"
     locked = "locked" if status.get("locked") else "released"
-    return f"Commander status for #{channel}: {locked}; active=@{active}; standby={standby}."
+    return f"Commander status for #{channel}: {locked}; active={active}; standby={standby}."
 
 
 async def _trigger_commander_target(target: str, sender: str, text: str, channel: str):
-    if not agents or not agents.is_available(target):
+    await _trigger_commander_targets([target], sender, text, channel)
+
+
+async def _trigger_commander_targets(targets: list[str], sender: str, text: str, channel: str):
+    if not agents:
         return
-    prompt = (
-        f"use mcp to read #{channel}. Commander lock is active and @{target} is "
-        "the only active worker. Respond in the channel with the requested handoff. "
-        "Do not mention or wake other agents unless the dispatcher or human explicitly hands off."
-    )
-    await agents.trigger(target, message=f"{sender}: {text}", channel=channel, prompt=prompt)
+    active_text = ", ".join(f"@{target}" for target in targets)
+    for target in targets:
+        if not agents or not agents.is_available(target):
+            continue
+        prompt = (
+            f"use mcp to read #{channel}. Commander lock is active and the active worker lane is "
+            f"{active_text}. @{target}, respond with your assigned handoff/status. Do not mention "
+            "or wake other agents unless the orchestrator or human explicitly hands off."
+        )
+        await agents.trigger(target, message=f"{sender}: {text}", channel=channel, prompt=prompt)
 
 
 async def _handle_commander_command(sender: str, text: str, channel: str) -> bool:
@@ -769,7 +799,7 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
     if not _is_commander_sender(sender):
         store.add(
             "system",
-            f"Commander control denied: {sender} is not a dispatcher or human operator.",
+            f"Commander control denied: {sender} is not an orchestrator/dispatcher or human operator.",
             msg_type="system",
             channel=channel,
         )
@@ -787,17 +817,17 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
                 channel=channel,
             )
             return True
-        target = targets[0]
-        router.set_commander_lock(channel, active_agent=target, updated_by=sender, reason=reason)
+        router.set_commander_lock(channel, active_agents=targets, updated_by=sender, reason=reason)
+        active = " ".join(f"@{target}" for target in targets)
         store.add(
             "system",
-            f"Commander lock: only @{target} may advance agent routing in #{channel}. "
+            f"Commander lock: only {active} may advance agent routing in #{channel}. "
             "Other agents are standby until `/handoff @agent` or `/release`.",
             msg_type="system",
             channel=channel,
         )
         await broadcast_status()
-        await _trigger_commander_target(target, sender, text, channel)
+        await _trigger_commander_targets(targets, sender, text, channel)
         return True
 
     if cmd == "/standby":
@@ -991,23 +1021,54 @@ async def _handle_new_message(msg: dict):
 
     raw_targets = router.get_targets(sender, text, channel)
     auto_dispatched = False
+    auto_dispatch_plan: dict[str, object] = {"orchestrator": "", "commander": "", "workers": [], "targets": []}
     if not raw_targets and _should_auto_dispatch(sender, text, msg_type, stripped, known_agents):
-        raw_targets = _select_auto_dispatch_targets(text)
+        auto_dispatch_plan = _select_auto_dispatch_plan(text)
+        raw_targets = list(auto_dispatch_plan.get("targets", []))
         commander_status = router.get_commander_status(channel) if router else {}
-        if commander_status.get("locked") and commander_status.get("active_agent"):
-            raw_targets = [commander_status["active_agent"]]
+        if commander_status.get("locked") and (
+            commander_status.get("active_agents") or commander_status.get("active_agent")
+        ):
+            active_targets = commander_status.get("active_agents") or [commander_status["active_agent"]]
+            commander = str(auto_dispatch_plan.get("commander", "") or "")
+            raw_targets = ([commander] if commander else []) + list(active_targets)
+            auto_dispatch_plan = {
+                "orchestrator": commander,
+                "commander": commander,
+                "workers": list(active_targets),
+                "targets": raw_targets,
+            }
         elif commander_status.get("standby"):
             standby = set(commander_status.get("standby", []))
             raw_targets = [target for target in raw_targets if target not in standby]
+            auto_dispatch_plan["workers"] = [
+                target for target in auto_dispatch_plan.get("workers", []) if target not in standby
+            ]
+            auto_dispatch_plan["targets"] = raw_targets
+        commander = str(auto_dispatch_plan.get("commander", "") or "")
+        workers = [str(worker) for worker in auto_dispatch_plan.get("workers", [])]
+        if router and commander and workers and not commander_status.get("locked"):
+            router.set_commander_lock(channel, active_agents=workers, updated_by=commander, reason=text.strip())
         auto_dispatched = bool(raw_targets)
         if auto_dispatched and config.get("routing", {}).get("auto_dispatch_announce", True):
-            mentions = " ".join(f"@{target}" for target in raw_targets)
+            if commander and workers:
+                worker_mentions = " ".join(f"@{worker}" for worker in workers)
+                announcement = f"Orchestrator auto-dispatched: @{commander} coordinating {worker_mentions}"
+            else:
+                mentions = " ".join(f"@{target}" for target in raw_targets)
+                announcement = f"Auto-dispatched to {mentions}"
             store.add(
                 "system",
-                f"Auto-dispatched to {mentions}",
+                announcement,
                 msg_type="system",
                 channel=channel,
-                metadata={"auto_dispatch": True, "targets": raw_targets},
+                metadata={
+                    "auto_dispatch": True,
+                    "orchestrator": commander,
+                    "commander": commander,
+                    "workers": workers,
+                    "targets": raw_targets,
+                },
             )
     # Resolve base family names to actual registered instances
     # e.g. 'claude' → 'claude-prime' when slot-1 was renamed
@@ -1034,8 +1095,8 @@ async def _handle_new_message(msg: dict):
     # Build a readable message string for the wake prompt
     chat_msg = f"{sender}: {text}" if text else ""
     custom_prompt = text if is_hidden_session_request else ""
-    if auto_dispatched:
-        custom_prompt = _auto_dispatch_prompt(channel)
+    auto_dispatch_commander = str(auto_dispatch_plan.get("commander", "") or "")
+    auto_dispatch_workers = [str(worker) for worker in auto_dispatch_plan.get("workers", [])]
 
     # Session turn guard: if a session is active on this channel and the sender
     # is an agent, only allow triggering the agent whose turn it is.
@@ -1056,7 +1117,15 @@ async def _handle_new_message(msg: dict):
         if not mcp_bridge.is_online(target):
             store.add("system", f"{target} appears offline — message queued.", msg_type="system", channel=channel)
         if agents.is_available(target):
-            await agents.trigger(target, message=chat_msg, channel=channel, prompt=custom_prompt)
+            target_prompt = custom_prompt
+            if auto_dispatched:
+                target_prompt = _auto_dispatch_prompt(
+                    channel,
+                    target=target,
+                    commander=auto_dispatch_commander,
+                    workers=auto_dispatch_workers,
+                )
+            await agents.trigger(target, message=chat_msg, channel=channel, prompt=target_prompt)
 
 
 # --- broadcasting ---
@@ -1800,78 +1869,54 @@ async def api_send(request: Request):
     return JSONResponse(msg)
 
 
-def _stop_registered_agent_processes() -> dict:
+STOP_ALL_AGENTS_PROMPT = (
+    "Stop your current work now and stand by. Do not continue the current task, "
+    "do not wake other agents, do not deregister yourself, and stay registered in agentchattr."
+)
+
+
+async def _request_registered_agents_to_stop(channel: str) -> dict:
     report = {
         "registered": [],
-        "deregistered": [],
-        "queues_cleared": 0,
-        "tmux_sessions_killed": [],
-        "process_patterns_signaled": [],
+        "requested": [],
+        "unavailable": [],
         "errors": [],
     }
-
-    data_dir = Path(config.get("server", {}).get("data_dir", "./data"))
 
     if registry:
         names = list(registry.get_all_names())
         report["registered"] = names
         for name in names:
             try:
-                if registry.deregister(name):
-                    report["deregistered"].append(name)
+                if agents and agents.is_available(name):
+                    await agents.trigger(
+                        name,
+                        message="system: Stop current work and stand by.",
+                        channel=channel,
+                        prompt=STOP_ALL_AGENTS_PROMPT,
+                    )
+                    report["requested"].append(name)
+                else:
+                    report["unavailable"].append(name)
             except Exception as exc:
-                report["errors"].append(f"deregister {name}: {exc}")
-
-    try:
-        for queue_file in data_dir.glob("*_queue.jsonl"):
-            queue_file.write_text("", "utf-8")
-            report["queues_cleared"] += 1
-    except Exception as exc:
-        report["errors"].append(f"clear queues: {exc}")
-
-    if sys.platform != "win32" and shutil.which("tmux"):
-        try:
-            result = subprocess.run(
-                ["tmux", "list-sessions", "-F", "#{session_name}"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                for session in result.stdout.splitlines():
-                    session = session.strip()
-                    if not session.startswith("agentchattr-"):
-                        continue
-                    subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True, check=False)
-                    report["tmux_sessions_killed"].append(session)
-        except Exception as exc:
-            report["errors"].append(f"tmux cleanup: {exc}")
-
-    if sys.platform != "win32" and shutil.which("pkill"):
-        for pattern in ("wrapper.py", "wrapper_api.py", "mcp_proxy.py"):
-            try:
-                subprocess.run(["pkill", "-f", pattern], capture_output=True, check=False)
-                report["process_patterns_signaled"].append(pattern)
-            except Exception as exc:
-                report["errors"].append(f"pkill {pattern}: {exc}")
+                report["errors"].append(f"request stop {name}: {exc}")
 
     return report
 
 
 @app.post("/api/agents/stop-all")
 async def stop_all_agents():
-    report = _stop_registered_agent_processes()
-    count = len(report.get("deregistered", []))
     channel = _last_active_channel or "general"
+    report = await _request_registered_agents_to_stop(channel)
+    count = len(report.get("requested", []))
     store.add(
         "system",
-        f"Stop all agents requested. Deregistered {count} agent(s); cleared {report.get('queues_cleared', 0)} queue file(s).",
+        f"Stop command sent to {count} agent(s). Agents remain registered.",
         msg_type="system",
         channel=channel,
         metadata={"stop_all_agents": report},
     )
     if _event_loop:
-        await broadcast_agents()
         await broadcast_status()
     return JSONResponse(report)
 

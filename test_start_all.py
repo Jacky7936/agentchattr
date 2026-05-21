@@ -7,7 +7,7 @@ class StartAllTeamLaunchTest(unittest.TestCase):
     def test_model_team_launches_with_expected_provider_and_nonblocking_permission_flags(self):
         script = Path("macos-linux/start_all.sh").read_text("utf-8")
         expected = {
-            "codex-dispatcher": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
+            "codex-orchestrator": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-planner": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-builder": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-architect": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
@@ -18,6 +18,7 @@ class StartAllTeamLaunchTest(unittest.TestCase):
             "claude-researcher": ("wrapper.py claude", "--permission-mode auto"),
             "claude-challenger": ("wrapper.py claude", "--permission-mode auto"),
             "codex-prototyper": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
+            "codex-module-prototype-designer": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
         }
 
         for profile, (provider, flag) in expected.items():
@@ -28,6 +29,7 @@ class StartAllTeamLaunchTest(unittest.TestCase):
 
         self.assertNotIn("--profile codex-architecture-reviewer", script)
         self.assertNotIn("--profile codex-spike-prototyper", script)
+        self.assertNotIn("--profile codex-dispatcher", script)
 
     def _launch_command(self, script: str, profile: str) -> str:
         match = re.search(rf'(?m)^(?:start_agent\s+)?"([^"]*--profile {re.escape(profile)}[^"]*)"', script)

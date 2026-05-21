@@ -26,6 +26,15 @@ LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS = (
     "架構",
     "資料流",
 )
+LEGACY_CODEX_DISPATCHER_SPECIALTY = (
+    "Classify incoming tasks and dispatch the smallest useful set of agents by role and specialty."
+)
+LEGACY_CODEX_DISPATCHER_RESPONSIBILITIES = (
+    "Choose agents when the user did not mention anyone explicitly.",
+    "Keep the team small and explain the handoff when needed.",
+)
+LEGACY_CODEX_DISPATCHER_AVOID = ("Do not implement directly unless no better specialist is available.",)
+LEGACY_CODEX_DISPATCHER_OUTPUT_CONTRACT = "Name the selected agents and why, then hand off or summarise."
 LEGACY_RESEARCHER_SPECIALTY = (
     "Scan large context, compare documents, find contradictions, and summarise evidence quickly."
 )
@@ -49,6 +58,12 @@ LEGACY_RESEARCHER_RESPONSIBILITIES = (
 LEGACY_CODEX_CHALLENGER_AVOID = ("Do not duplicate Gemini Challenger's broad spec/context challenge.",)
 
 LEGACY_FIELD_MIGRATIONS = {
+    "codex-orchestrator": {
+        "specialty": (LEGACY_CODEX_DISPATCHER_SPECIALTY,),
+        "responsibilities": (LEGACY_CODEX_DISPATCHER_RESPONSIBILITIES,),
+        "avoid": (LEGACY_CODEX_DISPATCHER_AVOID,),
+        "output_contract": (LEGACY_CODEX_DISPATCHER_OUTPUT_CONTRACT,),
+    },
     "codex-architect": {"trigger_tags": (LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS,)},
     "codex-challenger": {"avoid": (LEGACY_CODEX_CHALLENGER_AVOID,)},
     "claude-researcher": {
@@ -60,6 +75,7 @@ LEGACY_FIELD_MIGRATIONS = {
 
 RETIRED_DEFAULT_PROFILE_IDS = (
     "codex-architecture-reviewer",
+    "codex-dispatcher",
     "codex-researcher",
     "codex-spike-prototyper",
     "gemini-researcher",
@@ -70,22 +86,23 @@ RETIRED_DEFAULT_PROFILE_IDS = (
 
 
 DEFAULT_TEAM_PROFILES = {
-    "codex-dispatcher": {
+    "codex-orchestrator": {
         "base": "codex",
-        "name": "codex-dispatcher",
-        "label": "Codex Dispatcher",
-        "role": "Dispatcher",
+        "name": "codex-orchestrator",
+        "label": "Codex Orchestrator",
+        "role": "Orchestrator",
         "model": "Codex GPT-5.5",
-        "thinking_effort": "low",
-        "specialty": "Classify incoming tasks and dispatch the smallest useful set of agents by role and specialty.",
+        "thinking_effort": "high",
+        "specialty": "Act as the commander for multi-agent work: classify tasks, parallel-dispatch focused workers, track progress, and prevent routing loops.",
         "trigger_tags": ["dispatch", "triage", "assign", "route", "who", "誰", "不確定", "派誰"],
         "rank": 1,
         "responsibilities": [
             "Choose agents when the user did not mention anyone explicitly.",
-            "Keep the team small and explain the handoff when needed.",
+            "Run the room as commander: split independent work across active workers, ask for progress, and consolidate the result.",
+            "Use commander controls to keep active workers from waking each other into loops.",
         ],
-        "avoid": ["Do not implement directly unless no better specialist is available."],
-        "output_contract": "Name the selected agents and why, then hand off or summarise.",
+        "avoid": ["Do not implement directly unless no better specialist is available.", "Do not mention inactive agents during a commander lane."],
+        "output_contract": "Name active workers, assign each slice, track progress, and summarise the final result for the human.",
     },
     "codex-planner": {
         "base": "codex",
@@ -320,6 +337,43 @@ DEFAULT_TEAM_PROFILES = {
         ],
         "avoid": ["Do not own final production merge or final architecture."],
         "output_contract": "Show the prototype direction, compared options, assumptions, and what Codex Builder should productionise.",
+    },
+    "codex-module-prototype-designer": {
+        "base": "codex",
+        "name": "codex-module-prototype-designer",
+        "label": "Codex Module Prototype Designer",
+        "role": "Module Prototype Designer",
+        "model": "Codex GPT-5.5",
+        "thinking_effort": "high",
+        "specialty": "Turn module plans into polished, repo-aware UI prototypes for validating flow, function, states, and visual direction before production implementation.",
+        "trigger_tags": [
+            "module prototype",
+            "prototype designer",
+            "ui prototype",
+            "flow prototype",
+            "screen prototype",
+            "wireflow",
+            "mockup",
+            "desktop mobile",
+            "模組原型",
+            "UI原型",
+            "畫面原型",
+            "流程確認",
+            "功能確認",
+            "設計方向",
+        ],
+        "rank": 1,
+        "responsibilities": [
+            "Read the repo's existing routes, components, design language, and module plan before drafting screens.",
+            "Produce inspectable desktop and mobile prototypes that cover the main flow, empty states, error states, and permission or disabled states.",
+            "Keep prototype artifacts marked as direction and flow validation, not canonical UI or data-model authority.",
+            "Use Browser to inspect the rendered local prototype when a route or static file is available.",
+        ],
+        "avoid": [
+            "Do not promote prototype artifacts into formal UI or schema specifications unless the user explicitly approves.",
+            "Do not make production data-model or business-logic changes while exploring prototype direction.",
+        ],
+        "output_contract": "Deliver the prototype direction, covered flows/states, assumptions, open questions, and what must change before production implementation.",
     },
 }
 

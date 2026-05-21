@@ -1,13 +1,13 @@
 import unittest
 
-from dispatcher import select_dispatch_targets
+from dispatcher import plan_orchestrator_dispatch, select_dispatch_targets
 from team_config import DEFAULT_TEAM_PROFILES
 
 
 PROFILES = {
-    "codex-dispatcher": {
-        "name": "codex-dispatcher",
-        "role": "Dispatcher",
+    "codex-orchestrator": {
+        "name": "codex-orchestrator",
+        "role": "Orchestrator",
         "trigger_tags": ["dispatch", "triage", "誰", "不確定"],
         "rank": 1,
     },
@@ -90,6 +90,41 @@ class DispatcherSelectionTests(unittest.TestCase):
 
         self.assertEqual(targets[:2], ["claude-designer", "codex-builder"])
 
+    def test_commander_dispatch_plan_adds_dispatcher_to_parallel_workers(self):
+        plan = plan_orchestrator_dispatch(
+            "請幫我重新設計 UI/UX layout，然後實作到前端",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_workers=3,
+        )
+
+        self.assertEqual(plan["orchestrator"], "codex-orchestrator")
+        self.assertEqual(plan["workers"][:2], ["claude-designer", "codex-builder"])
+        self.assertEqual(plan["targets"][:3], ["codex-orchestrator", "claude-designer", "codex-builder"])
+
+    def test_commander_dispatch_plan_limits_parallel_workers(self):
+        plan = plan_orchestrator_dispatch(
+            "review this migration for bugs, risk, edge cases, tests, and verification gaps",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_workers=2,
+        )
+
+        self.assertEqual(plan["orchestrator"], "codex-orchestrator")
+        self.assertEqual(len(plan["workers"]), 2)
+        self.assertEqual(plan["targets"][0], "codex-orchestrator")
+
+    def test_commander_dispatch_plan_falls_back_when_dispatcher_offline(self):
+        plan = plan_orchestrator_dispatch(
+            "請幫我重新設計 UI layout 並實作到前端",
+            PROFILES,
+            active_names=["codex-builder", "claude-designer"],
+            max_workers=3,
+        )
+
+        self.assertEqual(plan["orchestrator"], "")
+        self.assertEqual(plan["targets"], ["claude-designer", "codex-builder"])
+
     def test_specialized_same_role_agent_only_joins_when_its_tags_match(self):
         targets = select_dispatch_targets(
             "build a quick prototype spike for this alternative UI",
@@ -154,6 +189,16 @@ class DispatcherSelectionTests(unittest.TestCase):
 
         self.assertIn("codex-prototyper", targets)
 
+    def test_module_ui_prototype_selects_module_prototype_designer(self):
+        targets = select_dispatch_targets(
+            "依據模組計畫產出 UI原型，讓我檢查流程確認與功能確認",
+            DEFAULT_TEAM_PROFILES,
+            active_names=list(DEFAULT_TEAM_PROFILES),
+            max_targets=4,
+        )
+
+        self.assertIn("codex-module-prototype-designer", targets)
+
     def test_web_api_regulation_research_selects_claude_researcher(self):
         targets = select_dispatch_targets(
             "請查最新法規、官方 API 文件和 rate limit 變更",
@@ -192,17 +237,17 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=3,
         )
 
-        self.assertEqual(targets, ["codex-dispatcher"])
+        self.assertEqual(targets, ["codex-orchestrator"])
 
     def test_offline_profiles_are_not_selected(self):
         targets = select_dispatch_targets(
             "請幫我重新設計 UI layout",
             PROFILES,
-            active_names=["codex-dispatcher", "codex-builder"],
+            active_names=["codex-orchestrator", "codex-builder"],
             max_targets=3,
         )
 
-        self.assertEqual(targets, ["codex-dispatcher"])
+        self.assertEqual(targets, ["codex-orchestrator"])
 
 
 if __name__ == "__main__":

@@ -182,7 +182,7 @@ if ! is_server_running; then
 fi
 
 # 2. 在新終端機視窗中啟動 Codex 主幹團隊 (Bypass 模式)
-start_agent ".venv/bin/python wrapper.py codex --profile codex-dispatcher --dangerously-bypass-approvals-and-sandbox" "Codex Dispatcher" "data/codex_dispatcher.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-orchestrator --dangerously-bypass-approvals-and-sandbox" "Codex Orchestrator" "data/codex_orchestrator.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-planner --dangerously-bypass-approvals-and-sandbox" "Codex Planner" "data/codex_planner.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-builder --dangerously-bypass-approvals-and-sandbox" "Codex Builder" "data/codex_builder.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-architect --dangerously-bypass-approvals-and-sandbox" "Codex Architect" "data/codex_architect.log"
@@ -194,6 +194,7 @@ start_agent ".venv/bin/python wrapper.py claude --profile claude-reviewer --perm
 start_agent ".venv/bin/python wrapper.py claude --profile claude-researcher --permission-mode auto" "Claude Researcher" "data/claude_researcher.log"
 start_agent ".venv/bin/python wrapper.py claude --profile claude-challenger --permission-mode auto" "Claude Challenger" "data/claude_challenger.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-prototyper --dangerously-bypass-approvals-and-sandbox" "Codex Prototyper" "data/codex_prototyper.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-module-prototype-designer --dangerously-bypass-approvals-and-sandbox" "Codex Module Prototype Designer" "data/codex_module_prototype_designer.log"
 
 # 4. 自動開啟瀏覽器聊天介面
 echo "Opening browser to Chat UI..."

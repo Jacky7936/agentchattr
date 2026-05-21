@@ -24,6 +24,7 @@ class Router:
                 "commander_control": {
                     "locked": False,
                     "active_agent": "",
+                    "active_agents": [],
                     "standby": set(),
                     "updated_by": "",
                     "reason": "",
@@ -37,6 +38,7 @@ class Router:
             ch["commander_control"] = {
                 "locked": False,
                 "active_agent": "",
+                "active_agents": [],
                 "standby": set(),
                 "updated_by": "",
                 "reason": "",
@@ -52,39 +54,55 @@ class Router:
         )
 
     def parse_mentions(self, text: str) -> list[str]:
-        mentions = set()
+        mentions = []
+
+        def add_mention(name: str):
+            if name not in mentions:
+                mentions.append(name)
+
         for match in self._mention_re.finditer(text):
             name = match.group(1).lower()
             if name in ("both", "all"):
                 # Only tag online agents when using @all
                 if self._online_checker:
                     online = self._online_checker()
-                    mentions.update(n for n in self.agent_names if n in online)
+                    for agent_name in sorted(self.agent_names):
+                        if agent_name in online:
+                            add_mention(agent_name)
                 else:
-                    mentions.update(self.agent_names)
+                    for agent_name in sorted(self.agent_names):
+                        add_mention(agent_name)
             else:
-                mentions.add(name)
-        return list(mentions)
+                add_mention(name)
+        return mentions
 
     def _is_agent(self, sender: str) -> bool:
         return sender.lower() in self.agent_names
 
     def _is_commander(self, sender: str) -> bool:
         name = sender.lower()
-        return name == "dispatcher" or name.endswith("-dispatcher")
+        return name in ("dispatcher", "orchestrator") or name.endswith(("-dispatcher", "-orchestrator"))
 
     def set_commander_lock(
         self,
         channel: str = "general",
         *,
         active_agent: str = "",
+        active_agents: list[str] | None = None,
         updated_by: str = "",
         reason: str = "",
     ) -> dict:
-        """Restrict agent-to-agent routing on a channel to one active agent."""
+        """Restrict agent-to-agent routing on a channel to active worker lanes."""
         ctl = self._get_control(channel)
+        agents = active_agents if active_agents is not None else [active_agent]
+        clean_agents = []
+        for agent in agents:
+            clean = str(agent or "").lower().lstrip("@")
+            if clean and clean not in clean_agents:
+                clean_agents.append(clean)
         ctl["locked"] = True
-        ctl["active_agent"] = active_agent.lower().lstrip("@")
+        ctl["active_agent"] = clean_agents[0] if clean_agents else ""
+        ctl["active_agents"] = clean_agents
         ctl["standby"] = set()
         ctl["updated_by"] = updated_by
         ctl["reason"] = reason
@@ -95,6 +113,7 @@ class Router:
         ctl = self._get_control(channel)
         ctl["locked"] = False
         ctl["active_agent"] = ""
+        ctl["active_agents"] = []
         ctl["standby"] = set()
         ctl["updated_by"] = updated_by
         ctl["reason"] = ""
@@ -110,20 +129,36 @@ class Router:
     ) -> dict:
         """Mark selected agents as standby so their messages cannot route others."""
         ctl = self._get_control(channel)
-        ctl["standby"].update(a.lower().lstrip("@") for a in agents if a)
+        standby = {a.lower().lstrip("@") for a in agents if a}
+        ctl["standby"].update(standby)
+        active_agents = [a for a in self._active_agents(ctl) if a not in standby]
+        ctl["active_agents"] = active_agents
+        ctl["active_agent"] = active_agents[0] if active_agents else ""
         ctl["updated_by"] = updated_by
         ctl["reason"] = reason or ctl.get("reason", "")
         return self.get_commander_status(channel)
 
     def get_commander_status(self, channel: str = "general") -> dict:
         ctl = self._get_control(channel)
+        active_agents = self._active_agents(ctl)
         return {
             "locked": bool(ctl.get("locked")),
-            "active_agent": ctl.get("active_agent", ""),
+            "active_agent": active_agents[0] if active_agents else "",
+            "active_agents": active_agents,
             "standby": sorted(ctl.get("standby", set())),
             "updated_by": ctl.get("updated_by", ""),
             "reason": ctl.get("reason", ""),
         }
+
+    def _active_agents(self, ctl: dict) -> list[str]:
+        raw = ctl.get("active_agents") or ([ctl.get("active_agent", "")] if ctl.get("active_agent") else [])
+        standby = ctl.get("standby", set())
+        active = []
+        for agent in raw:
+            clean = str(agent or "").lower().lstrip("@")
+            if clean and clean not in standby and clean not in active:
+                active.append(clean)
+        return active
 
     def _filter_human_targets(self, targets: list[str], channel: str, explicit_mentions: bool) -> list[str]:
         ctl = self._get_control(channel)
@@ -133,9 +168,9 @@ class Router:
         # follows the active commander lane to prevent accidental fan-out.
         if explicit_mentions:
             return targets
-        active = ctl.get("active_agent", "")
+        active = self._active_agents(ctl)
         if active:
-            return [active]
+            return active
         return [t for t in targets if t not in ctl.get("standby", set())]
 
     def _filter_agent_targets(self, sender: str, targets: list[str], channel: str) -> list[str]:
@@ -144,7 +179,7 @@ class Router:
         if not ctl.get("locked") and sender not in ctl.get("standby", set()):
             return targets
 
-        active = ctl.get("active_agent", "")
+        active = self._active_agents(ctl)
         standby = ctl.get("standby", set())
         sender_is_commander = self._is_commander(sender)
 
@@ -153,11 +188,11 @@ class Router:
 
         if sender_is_commander:
             if active:
-                return [t for t in targets if t == active]
+                return [t for t in targets if t in active]
             return [t for t in targets if self._is_commander(t)]
 
-        if active and sender == active:
-            # The active worker may wake the dispatcher to request handoff, but
+        if active and sender in active:
+            # The active worker may wake the orchestrator to request handoff, but
             # cannot fan the room out to reviewers or prototypers by mentioning them.
             return [t for t in targets if self._is_commander(t)]
 

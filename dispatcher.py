@@ -9,6 +9,7 @@ from agent_profiles import normalize_profile_id
 
 
 ROLE_KEYWORDS = {
+    "orchestrator": ["orchestrate", "dispatch", "triage", "route", "assign", "who", "誰", "不確定", "派誰"],
     "dispatcher": ["dispatch", "triage", "route", "assign", "who", "誰", "不確定", "派誰"],
     "planner": ["plan", "planning", "roadmap", "scope", "requirements", "spec", "規劃", "計畫", "計劃", "需求"],
     "designer": ["ui", "ux", "design", "layout", "wireframe", "mockup", "pencil", "visual", "設計", "畫面", "介面"],
@@ -75,7 +76,7 @@ def select_dispatch_targets(
         if active is not None and name not in active and normalize_profile_id(profile_id) not in active:
             continue
         score = _score_profile(text, profile)
-        if score <= 0:
+        if score < 10:
             continue
         role = str(profile.get("role", "")).strip().lower()
         scored.append(
@@ -83,7 +84,7 @@ def select_dispatch_targets(
                 "name": name,
                 "score": score,
                 "rank": _profile_rank(profile),
-                "is_dispatcher": role == "dispatcher",
+                "is_dispatcher": _is_orchestrator_role(role),
                 "role": role,
                 "tag_match": _has_trigger_tag(text, profile),
             }
@@ -117,15 +118,16 @@ def _score_profile(text: str, profile: dict) -> int:
     if "reviewer" in role and any(word in haystack for word in ("review", "審查", "檢查")):
         score += 12
 
-    profile_terms = " ".join(
-        _string_list(profile.get("specialty"))
-        + _string_list(profile.get("responsibilities"))
-        + _string_list(profile.get("label"))
-        + _string_list(profile.get("model"))
-    )
-    for token in _tokens(profile_terms):
-        if len(token) >= 5 and token in haystack:
-            score += 1
+    if score > 0:
+        profile_terms = " ".join(
+            _string_list(profile.get("specialty"))
+            + _string_list(profile.get("responsibilities"))
+            + _string_list(profile.get("label"))
+            + _string_list(profile.get("model"))
+        )
+        for token in _tokens(profile_terms):
+            if len(token) >= 5 and token in haystack:
+                score += 1
 
     return score
 
@@ -158,7 +160,7 @@ def _fallback_dispatcher(profiles: dict[str, dict], active: set[str] | None) -> 
     dispatchers = []
     for profile_id, profile in profiles.items():
         role = str(profile.get("role", "")).strip().lower()
-        if role != "dispatcher":
+        if not _is_orchestrator_role(role):
             continue
         name = normalize_profile_id(str(profile.get("name") or profile_id))
         if not name:
@@ -168,6 +170,41 @@ def _fallback_dispatcher(profiles: dict[str, dict], active: set[str] | None) -> 
         dispatchers.append((_profile_rank(profile), name))
     dispatchers.sort()
     return dispatchers[0][1] if dispatchers else ""
+
+
+def plan_orchestrator_dispatch(
+    text: str,
+    profiles: dict[str, dict],
+    *,
+    active_names: Iterable[str] | None = None,
+    max_workers: int = 3,
+) -> dict[str, object]:
+    """Build an auto-dispatch plan with an orchestrator and parallel workers."""
+    workers = select_dispatch_targets(
+        text,
+        profiles,
+        active_names=active_names,
+        max_targets=max_workers,
+    )
+    active = {normalize_profile_id(n) for n in active_names} if active_names is not None else None
+    orchestrator = _fallback_dispatcher(profiles, active)
+    workers = [name for name in workers if name != orchestrator]
+    targets = ([orchestrator] if orchestrator else []) + workers
+    return {
+        "orchestrator": orchestrator,
+        "commander": orchestrator,
+        "workers": workers,
+        "targets": targets,
+    }
+
+
+def plan_commander_dispatch(*args, **kwargs) -> dict[str, object]:
+    """Backward-compatible alias for older callers."""
+    return plan_orchestrator_dispatch(*args, **kwargs)
+
+
+def _is_orchestrator_role(role: str) -> bool:
+    return role in ("orchestrator", "dispatcher")
 
 
 def _profile_rank(profile: dict) -> int:

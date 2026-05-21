@@ -39,8 +39,8 @@ class RouterMentionTests(unittest.TestCase):
         self.assertEqual(router.get_targets("ben", "@telegram-bot check"), [])
 
     def test_commander_lock_blocks_non_active_agent_fanout(self):
-        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
-        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+        router = Router(["codex-orchestrator", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-orchestrator")
 
         self.assertEqual(
             router.get_targets("claude-reviewer", "@codex-builder ACK", channel="design"),
@@ -48,25 +48,71 @@ class RouterMentionTests(unittest.TestCase):
         )
 
     def test_commander_lock_allows_dispatcher_to_wake_only_active_agent(self):
-        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
-        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+        router = Router(["codex-orchestrator", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-orchestrator")
 
         self.assertEqual(
             router.get_targets(
-                "codex-dispatcher",
+                "codex-orchestrator",
                 "@codex-builder @claude-reviewer first handoff only",
                 channel="design",
             ),
             ["codex-builder"],
         )
 
-    def test_commander_lock_allows_active_agent_to_wake_dispatcher(self):
-        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
-        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+    def test_commander_lock_supports_parallel_active_agents(self):
+        router = Router(
+            ["codex-orchestrator", "codex-builder", "claude-researcher", "claude-reviewer"],
+            default_mention="all",
+        )
+        status = router.set_commander_lock(
+            "design",
+            active_agents=["codex-builder", "claude-researcher"],
+            updated_by="codex-orchestrator",
+        )
+
+        self.assertEqual(status["active_agents"], ["codex-builder", "claude-researcher"])
+        self.assertEqual(status["active_agent"], "codex-builder")
+        self.assertEqual(
+            router.get_targets(
+                "codex-orchestrator",
+                "@codex-builder @claude-researcher @claude-reviewer split work",
+                channel="design",
+            ),
+            ["codex-builder", "claude-researcher"],
+        )
+        self.assertEqual(
+            router.get_targets("Jacky", "please continue", channel="design"),
+            ["codex-builder", "claude-researcher"],
+        )
+
+    def test_parallel_active_agent_can_only_wake_dispatcher(self):
+        router = Router(
+            ["codex-orchestrator", "codex-builder", "claude-researcher", "claude-reviewer"],
+            default_mention="none",
+        )
+        router.set_commander_lock(
+            "design",
+            active_agents=["codex-builder", "claude-researcher"],
+            updated_by="codex-orchestrator",
+        )
 
         self.assertEqual(
-            router.get_targets("codex-builder", "@codex-dispatcher handoff ready", channel="design"),
-            ["codex-dispatcher"],
+            router.get_targets(
+                "codex-builder",
+                "@claude-researcher please continue and @codex-orchestrator status",
+                channel="design",
+            ),
+            ["codex-orchestrator"],
+        )
+
+    def test_commander_lock_allows_active_agent_to_wake_dispatcher(self):
+        router = Router(["codex-orchestrator", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-orchestrator")
+
+        self.assertEqual(
+            router.get_targets("codex-builder", "@codex-orchestrator handoff ready", channel="design"),
+            ["codex-orchestrator"],
         )
         self.assertEqual(
             router.get_targets("codex-builder", "@claude-reviewer please review", channel="design"),
@@ -74,8 +120,8 @@ class RouterMentionTests(unittest.TestCase):
         )
 
     def test_human_explicit_mentions_override_commander_lock(self):
-        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
-        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+        router = Router(["codex-orchestrator", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-orchestrator")
 
         self.assertEqual(
             router.get_targets("Jacky", "@claude-reviewer please inspect", channel="design"),
@@ -83,8 +129,8 @@ class RouterMentionTests(unittest.TestCase):
         )
 
     def test_human_default_routing_follows_active_commander_lane(self):
-        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="all")
-        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+        router = Router(["codex-orchestrator", "codex-builder", "claude-reviewer"], default_mention="all")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-orchestrator")
 
         self.assertEqual(router.get_targets("Jacky", "continue", channel="design"), ["codex-builder"])
 
