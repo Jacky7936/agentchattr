@@ -723,6 +723,13 @@ def _strip_mentions_for_command(text: str) -> str:
     return _re.sub(r"@[\w-]+\s*", "", text or "").strip().lower()
 
 
+def _commander_command_line(text: str) -> str:
+    for line in (text or "").splitlines():
+        if _is_commander_command(_strip_mentions_for_command(line)):
+            return line.strip()
+    return ""
+
+
 def _command_word(stripped: str) -> str:
     return stripped.split()[0] if stripped else ""
 
@@ -791,7 +798,10 @@ async def _trigger_commander_targets(targets: list[str], sender: str, text: str,
 
 
 async def _handle_commander_command(sender: str, text: str, channel: str) -> bool:
-    stripped = _strip_mentions_for_command(text)
+    command_text = _commander_command_line(text)
+    if not command_text:
+        return False
+    stripped = _strip_mentions_for_command(command_text)
     cmd = _command_word(stripped)
     if cmd not in _COMMANDER_COMMANDS:
         return False
@@ -805,8 +815,8 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
         )
         return True
 
-    targets = _resolve_control_targets(text)
-    reason = text.strip()
+    targets = _resolve_control_targets(command_text)
+    reason = command_text.strip()
 
     if cmd in ("/freeze", "/handoff"):
         if not targets:
