@@ -450,6 +450,7 @@ def _build_provider_launch(
     token: str = "",
     mcp_cfg: dict | None = None,
     project_dir: Path | None = None,
+    profile: dict | None = None,
 ) -> tuple[list[str], dict[str, str], dict[str, str], Path | None]:
     """Return provider-specific launch args/env/inject_env/settings_path.
 
@@ -464,7 +465,9 @@ def _build_provider_launch(
         token=token, mcp_cfg=mcp_cfg, project_dir=project_dir,
     )
 
-    launch_args = [*mcp_args, *_normalize_passthrough_args(extra_args)]
+    forwarded_args = _normalize_passthrough_args(extra_args)
+    profile_args = _profile_launch_args(agent, profile or {}, forwarded_args)
+    launch_args = [*mcp_args, *profile_args, *forwarded_args]
     launch_env = dict(env)
 
     return launch_args, launch_env, inject_env, settings_path
@@ -475,6 +478,102 @@ def _normalize_passthrough_args(extra_args: list[str]) -> list[str]:
     if extra_args and extra_args[0] == "--":
         return extra_args[1:]
     return extra_args
+
+
+def _profile_launch_args(agent: str, profile: dict, forwarded_args: list[str]) -> list[str]:
+    """Translate profile model/effort metadata into provider CLI flags."""
+    if not profile:
+        return []
+
+    if agent == "codex":
+        return _codex_profile_launch_args(profile, forwarded_args)
+    if agent == "claude":
+        return _claude_profile_launch_args(profile, forwarded_args)
+    return []
+
+
+def _codex_profile_launch_args(profile: dict, forwarded_args: list[str]) -> list[str]:
+    args: list[str] = []
+    model = _resolve_profile_launch_model("codex", profile)
+    effort = _resolve_profile_launch_effort(profile)
+
+    if (
+        model
+        and not _has_option(forwarded_args, "-m", "--model")
+        and not _has_codex_config(forwarded_args, "model")
+    ):
+        args.extend(["-m", model])
+    if effort and not _has_codex_config(forwarded_args, "model_reasoning_effort"):
+        args.extend(["-c", f'model_reasoning_effort="{effort}"'])
+    return args
+
+
+def _claude_profile_launch_args(profile: dict, forwarded_args: list[str]) -> list[str]:
+    args: list[str] = []
+    model = _resolve_profile_launch_model("claude", profile)
+    effort = _resolve_profile_launch_effort(profile)
+
+    if model and not _has_option(forwarded_args, "--model"):
+        args.extend(["--model", model])
+    if effort and not _has_option(forwarded_args, "--effort"):
+        args.extend(["--effort", effort])
+    return args
+
+
+def _resolve_profile_launch_model(agent: str, profile: dict) -> str:
+    raw = str(profile.get("launch_model") or profile.get("model") or "").strip()
+    if not raw:
+        return ""
+
+    normalized = raw.lower().replace("_", "-").strip()
+    aliases = {
+        "codex": {
+            "codex gpt-5.5": "gpt-5.5",
+            "gpt 5.5": "gpt-5.5",
+            "gpt-5.5": "gpt-5.5",
+        },
+        "claude": {
+            "claude code opus 4.7": "claude-opus-4-7[1m]",
+            "claude opus 4.7": "claude-opus-4-7[1m]",
+            "opus 4.7": "claude-opus-4-7[1m]",
+            "opus": "claude-opus-4-7[1m]",
+            "opus[1m]": "claude-opus-4-7[1m]",
+            "claude-opus-4-7": "claude-opus-4-7[1m]",
+            "claude-opus-4-7[1m]": "claude-opus-4-7[1m]",
+            "claude code sonnet 4.6": "claude-sonnet-4-6",
+            "claude sonnet 4.6": "claude-sonnet-4-6",
+            "sonnet 4.6": "claude-sonnet-4-6",
+            "sonnet": "sonnet",
+        },
+    }
+    return aliases.get(agent, {}).get(normalized, raw)
+
+
+def _resolve_profile_launch_effort(profile: dict) -> str:
+    return str(profile.get("launch_effort") or profile.get("thinking_effort") or "").strip()
+
+
+def _has_option(args: list[str], *options: str) -> bool:
+    option_set = set(options)
+    long_options = [opt for opt in options if opt.startswith("--")]
+    for arg in args:
+        if arg in option_set:
+            return True
+        if any(arg.startswith(f"{opt}=") for opt in long_options):
+            return True
+    return False
+
+
+def _has_codex_config(args: list[str], key: str) -> bool:
+    for idx, arg in enumerate(args):
+        value = ""
+        if arg in ("-c", "--config") and idx + 1 < len(args):
+            value = args[idx + 1]
+        elif arg.startswith("--config="):
+            value = arg.split("=", 1)[1]
+        if value.strip().startswith(f"{key}="):
+            return True
+    return False
 
 
 def _register_instance(server_port: int, base: str, label: str | None = None, profile: str = "") -> dict:
@@ -778,7 +877,15 @@ def main():
 
     assigned_name = registration["name"]
     assigned_token = registration["token"]
+    launch_profile = _fetch_profile_context(server_port, assigned_name, assigned_token)
+    if not launch_profile and args.profile:
+        launch_profile = _fetch_profile_context(server_port, args.profile, assigned_token)
     print(f"  Registered as: {assigned_name} (slot {registration.get('slot', '?')})")
+    if launch_profile:
+        launch_model = _resolve_profile_launch_model(agent, launch_profile)
+        launch_effort = _resolve_profile_launch_effort(launch_profile)
+        if launch_model or launch_effort:
+            print(f"  Launch profile: model={launch_model or '-'} effort={launch_effort or '-'}")
 
     proxy = None
     proxy_url = None
@@ -904,6 +1011,7 @@ def main():
         token=assigned_token,
         mcp_cfg=mcp_cfg,
         project_dir=project_dir,
+        profile=launch_profile,
     )
 
     print(f"  === {assigned_name.capitalize()} Chat Wrapper ===")

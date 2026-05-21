@@ -221,11 +221,13 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profiles["codex-reviewer"]["base"], "codex")
             self.assertEqual(profiles["codex-reviewer"]["role"], "Reviewer")
             self.assertEqual(profiles["codex-reviewer"]["model"], "Codex GPT-5.5")
+            self.assertEqual(profiles["codex-reviewer"]["launch_model"], "gpt-5.5")
             self.assertEqual(profiles["codex-reviewer"]["thinking_effort"], "xhigh")
             self.assertIn("architecture review", profiles["codex-reviewer"]["trigger_tags"])
             self.assertEqual(profiles["codex-challenger"]["role"], "Engineering Challenger")
             self.assertEqual(profiles["claude-researcher"]["base"], "claude")
             self.assertEqual(profiles["claude-researcher"]["model"], "Claude Code Sonnet 4.6")
+            self.assertEqual(profiles["claude-researcher"]["launch_model"], "claude-sonnet-4-6")
             self.assertEqual(profiles["claude-researcher"]["thinking_effort"], "high")
             self.assertIn("法規", profiles["claude-researcher"]["trigger_tags"])
             self.assertIn("api docs", profiles["claude-researcher"]["trigger_tags"])
@@ -245,6 +247,7 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertIn("UI原型", profiles["codex-module-prototype-designer"]["trigger_tags"])
             self.assertEqual(profiles["claude-reviewer"]["role"], "My Custom Reviewer")
             self.assertEqual(profiles["claude-reviewer"]["model"], "Custom Claude Model")
+            self.assertNotIn("launch_model", profiles["claude-reviewer"])
             self.assertIn("trigger_tags", profiles["claude-reviewer"])
             self.assertIn("auto-approval mode", profiles["claude-reviewer"]["runtime_policy"])
 
@@ -282,6 +285,8 @@ class AgentProfileStoreTest(unittest.TestCase):
             with self.subTest(profile=profile_id):
                 self.assertTrue(profile.get("model"))
                 self.assertTrue(profile.get("thinking_effort"))
+                self.assertTrue(profile.get("launch_model"))
+                self.assertTrue(profile.get("launch_effort"))
 
     def test_default_team_thinking_effort_policy(self):
         from team_config import DEFAULT_TEAM_PROFILES
@@ -289,6 +294,7 @@ class AgentProfileStoreTest(unittest.TestCase):
         codex_xhigh = {
             "codex-planner",
             "codex-architect",
+            "codex-reviewer",
             "codex-builder",
             "codex-challenger",
             "codex-prototyper",
@@ -301,6 +307,8 @@ class AgentProfileStoreTest(unittest.TestCase):
             if profile["model"] == "Claude Code Opus 4.7":
                 with self.subTest(profile=profile_id):
                     self.assertEqual(profile["thinking_effort"], "max")
+                    self.assertEqual(profile["launch_model"], "claude-opus-4-7[1m]")
+                    self.assertEqual(profile["launch_effort"], "max")
 
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-orchestrator"]["thinking_effort"], "high")
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-module-prototype-designer"]["thinking_effort"], "high")
@@ -360,6 +368,8 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profiles["codex-orchestrator"]["thinking_effort"], "high")
             self.assertEqual(profiles["codex-module-prototype-designer"]["thinking_effort"], "high")
             self.assertEqual(profiles["claude-reviewer"]["thinking_effort"], "max")
+            self.assertEqual(profiles["claude-reviewer"]["launch_model"], "claude-opus-4-7[1m]")
+            self.assertEqual(profiles["claude-reviewer"]["launch_effort"], "max")
             self.assertEqual(profiles["claude-researcher"]["thinking_effort"], "high")
 
     def test_default_team_removes_retired_antigravity_and_grok_profiles(self):

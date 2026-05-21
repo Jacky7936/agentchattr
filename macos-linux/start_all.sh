@@ -191,7 +191,7 @@ start_agent ".venv/bin/python wrapper.py codex --profile codex-challenger --dang
 
 # 3. 在新終端機視窗中啟動 review / research / prototype 專門角色
 start_agent ".venv/bin/python wrapper.py claude --profile claude-reviewer --permission-mode auto" "Claude Reviewer" "data/claude_reviewer.log"
-start_agent ".venv/bin/python wrapper.py claude --profile claude-researcher --permission-mode auto" "Claude Researcher" "data/claude_researcher.log"
+start_agent ".venv/bin/python wrapper.py claude --profile claude-researcher --dangerously-skip-permissions" "Claude Researcher" "data/claude_researcher.log"
 start_agent ".venv/bin/python wrapper.py claude --profile claude-challenger --permission-mode auto" "Claude Challenger" "data/claude_challenger.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-prototyper --dangerously-bypass-approvals-and-sandbox" "Codex Prototyper" "data/codex_prototyper.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-module-prototype-designer --dangerously-bypass-approvals-and-sandbox" "Codex Module Prototype Designer" "data/codex_module_prototype_designer.log"

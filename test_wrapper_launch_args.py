@@ -10,7 +10,7 @@ from mcp_bridge import _MCP_INSTRUCTIONS
 
 
 class WrapperLaunchArgsTest(unittest.TestCase):
-    def _codex_launch_args(self, extra_args):
+    def _codex_launch_args(self, extra_args, profile=None):
         with tempfile.TemporaryDirectory() as tmp:
             launch_args, launch_env, inject_env, settings_path = _build_provider_launch(
                 agent="codex",
@@ -20,12 +20,32 @@ class WrapperLaunchArgsTest(unittest.TestCase):
                 proxy_url="http://127.0.0.1:55993/mcp",
                 extra_args=extra_args,
                 env={},
+                profile=profile,
             )
 
         self.assertEqual(launch_env, {})
         self.assertEqual(inject_env, {})
         self.assertIsNone(settings_path)
         return launch_args
+
+    def _claude_launch_args(self, extra_args, profile=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            launch_args, launch_env, inject_env, settings_path = _build_provider_launch(
+                agent="claude",
+                agent_cfg={},
+                instance_name="claude-reviewer",
+                data_dir=Path(tmp),
+                proxy_url=None,
+                extra_args=extra_args,
+                env={},
+                token="test-token",
+                mcp_cfg={"http_port": 8123},
+                profile=profile,
+            )
+
+        self.assertEqual(launch_env, {})
+        self.assertEqual(settings_path.name, "claude-reviewer-mcp.json")
+        return launch_args, inject_env
 
     def test_codex_bypass_flag_is_forwarded_without_delimiter(self):
         args = self._codex_launch_args(["--dangerously-bypass-approvals-and-sandbox"])
@@ -45,6 +65,67 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertEqual(args[0], "-c")
         self.assertEqual(args[1], 'mcp_servers.agentchattr.url="http://127.0.0.1:55993/mcp"')
         self.assertEqual(args[2], "--dangerously-bypass-approvals-and-sandbox")
+
+    def test_codex_profile_model_and_effort_are_launch_args(self):
+        args = self._codex_launch_args(
+            ["--dangerously-bypass-approvals-and-sandbox"],
+            profile={
+                "model": "Codex GPT-5.5",
+                "thinking_effort": "xhigh",
+            },
+        )
+
+        self.assertIn("-m", args)
+        self.assertEqual(args[args.index("-m") + 1], "gpt-5.5")
+        self.assertIn("-c", args)
+        self.assertIn('model_reasoning_effort="xhigh"', args)
+        self.assertLess(
+            args.index('model_reasoning_effort="xhigh"'),
+            args.index("--dangerously-bypass-approvals-and-sandbox"),
+        )
+
+    def test_codex_profile_does_not_override_explicit_forwarded_model_args(self):
+        args = self._codex_launch_args(
+            ["--model", "gpt-5.4", "-c", 'model_reasoning_effort="low"'],
+            profile={
+                "model": "Codex GPT-5.5",
+                "thinking_effort": "xhigh",
+            },
+        )
+
+        self.assertEqual(args.count("--model"), 1)
+        self.assertIn("gpt-5.4", args)
+        self.assertNotIn("gpt-5.5", args)
+        self.assertIn('model_reasoning_effort="low"', args)
+        self.assertNotIn('model_reasoning_effort="xhigh"', args)
+
+    def test_claude_profile_model_and_effort_are_launch_args(self):
+        args, inject_env = self._claude_launch_args(
+            ["--permission-mode", "auto"],
+            profile={
+                "model": "Claude Code Opus 4.7",
+                "thinking_effort": "max",
+            },
+        )
+
+        self.assertEqual(inject_env, {})
+        self.assertIn("--model", args)
+        self.assertEqual(args[args.index("--model") + 1], "claude-opus-4-7[1m]")
+        self.assertIn("--effort", args)
+        self.assertEqual(args[args.index("--effort") + 1], "max")
+        self.assertLess(args.index("--effort"), args.index("--permission-mode"))
+
+    def test_claude_launch_effort_overrides_prompt_effort_metadata(self):
+        args, _ = self._claude_launch_args(
+            ["--permission-mode", "auto"],
+            profile={
+                "model": "Claude Code Opus 4.7",
+                "thinking_effort": "high",
+                "launch_effort": "max",
+            },
+        )
+
+        self.assertEqual(args[args.index("--effort") + 1], "max")
 
     def test_antigravity_writes_managed_plugin_with_bearer_mcp_config(self):
         with tempfile.TemporaryDirectory() as tmp:

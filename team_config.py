@@ -14,6 +14,9 @@ NONBLOCKING_RUNTIME_POLICY = (
     "Start and operate in non-blocking auto-approval mode; do not wait for human "
     "permission prompts during delegated work."
 )
+CODEX_GPT_55_LAUNCH_MODEL = "gpt-5.5"
+CLAUDE_OPUS_47_LAUNCH_MODEL = "claude-opus-4-7[1m]"
+CLAUDE_SONNET_46_LAUNCH_MODEL = "claude-sonnet-4-6"
 
 LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS = (
     "architecture",
@@ -92,7 +95,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Orchestrator",
         "role": "Orchestrator",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "high",
+        "launch_effort": "high",
         "specialty": "Act as the commander for multi-agent work: classify tasks, parallel-dispatch focused workers, track progress, and prevent routing loops.",
         "trigger_tags": ["dispatch", "triage", "assign", "route", "who", "誰", "不確定", "派誰"],
         "rank": 1,
@@ -110,7 +115,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Planner",
         "role": "Planner",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "xhigh",
+        "launch_effort": "xhigh",
         "specialty": "Turn ambiguous goals into ordered execution plans with constraints, risks, and success criteria.",
         "trigger_tags": ["plan", "planning", "roadmap", "spec", "scope", "requirements", "規劃", "計畫", "計劃", "需求"],
         "rank": 1,
@@ -124,7 +131,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Architect",
         "role": "Architect",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "xhigh",
+        "launch_effort": "xhigh",
         "specialty": "Own architecture, data flow, repo fit, API boundaries, migrations, and implementation feasibility.",
         "trigger_tags": [
             "architecture",
@@ -150,7 +159,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Reviewer",
         "role": "Reviewer",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "xhigh",
+        "launch_effort": "xhigh",
         "specialty": "Deep implementation and architecture review for repo-native bugs, regressions, tests, verification gaps, migration safety, and patch fit.",
         "trigger_tags": [
             "architecture review",
@@ -185,7 +196,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Builder",
         "role": "Builder",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "xhigh",
+        "launch_effort": "xhigh",
         "specialty": "Implement production code changes, tests, refactors, and repo-native fixes.",
         "trigger_tags": ["implement", "build", "fix", "code", "frontend", "backend", "test", "實作", "修正", "修"],
         "rank": 1,
@@ -199,7 +212,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Claude Designer",
         "role": "Designer",
         "model": "Claude Code Opus 4.7",
+        "launch_model": CLAUDE_OPUS_47_LAUNCH_MODEL,
         "thinking_effort": "max",
+        "launch_effort": "max",
         "specialty": "Lead UI/UX direction, information architecture, flows, critique, copy, and visual hierarchy.",
         "trigger_tags": ["ui", "ux", "design", "layout", "wireframe", "mockup", "pencil", "visual", "設計", "畫面", "介面"],
         "rank": 1,
@@ -213,7 +228,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Claude Reviewer",
         "role": "Reviewer",
         "model": "Claude Code Opus 4.7",
+        "launch_model": CLAUDE_OPUS_47_LAUNCH_MODEL,
         "thinking_effort": "max",
+        "launch_effort": "max",
         "specialty": "Lead code review for bugs, regressions, tests, maintainability, and product-risk issues.",
         "trigger_tags": ["review", "bug", "regression", "test", "maintainability", "pr", "檢查", "審查", "測試"],
         "rank": 1,
@@ -227,7 +244,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Claude Researcher",
         "role": "Researcher",
         "model": "Claude Code Sonnet 4.6",
+        "launch_model": CLAUDE_SONNET_46_LAUNCH_MODEL,
         "thinking_effort": "high",
+        "launch_effort": "high",
         "specialty": "Scan large context and web/current sources for laws, official API docs, policy changes, contradictions, and evidence.",
         "trigger_tags": [
             "research",
@@ -268,7 +287,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Claude Challenger",
         "role": "Red Team",
         "model": "Claude Code Opus 4.7",
+        "launch_model": CLAUDE_OPUS_47_LAUNCH_MODEL,
         "thinking_effort": "max",
+        "launch_effort": "max",
         "specialty": "Challenge assumptions, scan for edge cases, security risk, permission mistakes, and spec gaps.",
         "trigger_tags": ["red team", "challenge", "risk", "edge case", "security", "漏洞", "風險", "權限", "矛盾"],
         "rank": 2,
@@ -282,7 +303,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Challenger",
         "role": "Engineering Challenger",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "xhigh",
+        "launch_effort": "xhigh",
         "specialty": "Challenge engineering plans for feasibility, migration safety, repo-pattern drift, overengineering, and test strategy.",
         "trigger_tags": [
             "engineering risk",
@@ -309,7 +332,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Prototyper",
         "role": "Prototyper",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "xhigh",
+        "launch_effort": "xhigh",
         "specialty": "Create context-heavy UI drafts, multi-option prototypes, document/spec-to-demo explorations, quick spikes, and alternate implementation drafts.",
         "trigger_tags": [
             "prototype",
@@ -344,7 +369,9 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Module Prototype Designer",
         "role": "Module Prototype Designer",
         "model": "Codex GPT-5.5",
+        "launch_model": CODEX_GPT_55_LAUNCH_MODEL,
         "thinking_effort": "high",
+        "launch_effort": "high",
         "specialty": "Turn module plans into polished, repo-aware UI prototypes for validating flow, function, states, and visual direction before production implementation.",
         "trigger_tags": [
             "module prototype",
@@ -388,8 +415,17 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
         if profile["base"] not in agents_config:
             continue
         profile = {"runtime_policy": NONBLOCKING_RUNTIME_POLICY, **profile}
-        force_fields = ["base", "thinking_effort"]
         existing = store.get(profile_id) or {}
+        has_custom_model = bool(existing.get("model") and existing.get("model") != profile.get("model"))
+        has_custom_launch_model = bool(has_custom_model and existing.get("launch_model"))
+        if has_custom_model and not has_custom_launch_model:
+            profile = dict(profile)
+            profile.pop("launch_model", None)
+        force_fields = ["base", "thinking_effort"]
+        if profile.get("launch_model") and not has_custom_launch_model:
+            force_fields.append("launch_model")
+        if profile.get("launch_effort"):
+            force_fields.append("launch_effort")
         for field, legacy_values in LEGACY_FIELD_MIGRATIONS.get(profile_id, {}).items():
             existing_value = existing.get(field)
             if any(_legacy_value_matches(existing_value, legacy_value) for legacy_value in legacy_values):

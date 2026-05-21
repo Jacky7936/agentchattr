@@ -15,7 +15,7 @@ class StartAllTeamLaunchTest(unittest.TestCase):
             "codex-challenger": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "claude-reviewer": ("wrapper.py claude", "--permission-mode auto"),
             "claude-designer": ("wrapper.py claude", "--permission-mode auto"),
-            "claude-researcher": ("wrapper.py claude", "--permission-mode auto"),
+            "claude-researcher": ("wrapper.py claude", "--dangerously-skip-permissions"),
             "claude-challenger": ("wrapper.py claude", "--permission-mode auto"),
             "codex-prototyper": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-module-prototype-designer": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
