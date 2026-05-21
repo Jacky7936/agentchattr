@@ -186,15 +186,14 @@ start_agent ".venv/bin/python wrapper.py codex --profile codex-dispatcher --dang
 start_agent ".venv/bin/python wrapper.py codex --profile codex-planner --dangerously-bypass-approvals-and-sandbox" "Codex Planner" "data/codex_planner.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-builder --dangerously-bypass-approvals-and-sandbox" "Codex Builder" "data/codex_builder.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-architect --dangerously-bypass-approvals-and-sandbox" "Codex Architect" "data/codex_architect.log"
-start_agent ".venv/bin/python wrapper.py codex --profile codex-architecture-reviewer --dangerously-bypass-approvals-and-sandbox" "Codex Architecture Reviewer" "data/codex_architecture_reviewer.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-reviewer --dangerously-bypass-approvals-and-sandbox" "Codex Reviewer" "data/codex_reviewer.log"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-challenger --dangerously-bypass-approvals-and-sandbox" "Codex Challenger" "data/codex_challenger.log"
 
 # 3. 在新終端機視窗中啟動 review / research / prototype 專門角色
 start_agent ".venv/bin/python wrapper.py claude --profile claude-reviewer --permission-mode auto" "Claude Reviewer" "data/claude_reviewer.log"
-start_agent ".venv/bin/python wrapper.py antigravity --profile gemini-researcher --dangerously-skip-permissions" "Gemini Researcher" "data/gemini_researcher.log"
-start_agent ".venv/bin/python wrapper.py antigravity --profile gemini-challenger --dangerously-skip-permissions" "Gemini Challenger" "data/gemini_challenger.log"
-start_agent ".venv/bin/python wrapper.py antigravity --profile gemini-prototyper --dangerously-skip-permissions" "Gemini Prototyper" "data/gemini_prototyper.log"
-start_agent ".venv/bin/python wrapper.py grok --profile grok-prototyper --always-approve" "Grok Prototyper" "data/grok_prototyper.log"
+start_agent ".venv/bin/python wrapper.py claude --profile claude-researcher --permission-mode auto" "Claude Researcher" "data/claude_researcher.log"
+start_agent ".venv/bin/python wrapper.py claude --profile claude-challenger --permission-mode auto" "Claude Challenger" "data/claude_challenger.log"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-prototyper --dangerously-bypass-approvals-and-sandbox" "Codex Prototyper" "data/codex_prototyper.log"
 
 # 4. 自動開啟瀏覽器聊天介面
 echo "Opening browser to Chat UI..."

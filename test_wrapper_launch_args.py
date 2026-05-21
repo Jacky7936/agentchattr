@@ -197,6 +197,21 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertIn("ROLE: Reviewer", formatted)
         self.assertIn("MODEL: Claude Code Opus 4.7", formatted)
         self.assertIn("RUNTIME POLICY: Start and operate in non-blocking auto-approval mode.", formatted)
+        self.assertEqual(formatted.count("RUNTIME POLICY:"), 1)
+
+    def test_profile_context_includes_thinking_effort(self):
+        formatted = _format_profile_context(
+            {
+                "role": "Prototyper",
+                "model": "Codex GPT-5.5",
+                "thinking_effort": "high",
+            }
+        )
+
+        self.assertIn("MODEL: Codex GPT-5.5", formatted)
+        self.assertIn("THINKING EFFORT: high", formatted)
+        self.assertNotIn("RESPONSIBILITIES: None", formatted)
+        self.assertNotIn("AVOID: None", formatted)
 
 
 if __name__ == "__main__":

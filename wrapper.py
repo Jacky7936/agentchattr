@@ -562,6 +562,9 @@ def _format_profile_context(profile: dict, *, role_fallback: str = "") -> str:
     model = str(profile.get("model", "")).strip()
     if model:
         parts.append(f"MODEL: {model}")
+    thinking_effort = str(profile.get("thinking_effort", "")).strip()
+    if thinking_effort:
+        parts.append(f"THINKING EFFORT: {thinking_effort}")
     specialty = str(profile.get("specialty", "")).strip()
     if specialty:
         parts.append(f"SPECIALTY: {specialty}")
@@ -574,9 +577,6 @@ def _format_profile_context(profile: dict, *, role_fallback: str = "") -> str:
     avoid = _profile_list(profile.get("avoid"))
     if avoid:
         parts.append("AVOID: " + "; ".join(avoid))
-    runtime_policy = str(profile.get("runtime_policy", "")).strip()
-    if runtime_policy:
-        parts.append(f"RUNTIME POLICY: {runtime_policy}")
     output_contract = str(profile.get("output_contract", "")).strip()
     if output_contract:
         parts.append(f"OUTPUT CONTRACT: {output_contract}")
@@ -584,6 +584,8 @@ def _format_profile_context(profile: dict, *, role_fallback: str = "") -> str:
 
 
 def _profile_list(value) -> list[str]:
+    if value is None:
+        return []
     raw = value if isinstance(value, list) else [value]
     return [str(item).strip() for item in raw if str(item).strip()]
 

@@ -23,10 +23,21 @@ PROFILES = {
         "trigger_tags": ["architecture", "migration", "schema", "資料流"],
         "rank": 1,
     },
-    "codex-architecture-reviewer": {
-        "name": "codex-architecture-reviewer",
-        "role": "Architecture Reviewer",
-        "trigger_tags": ["architecture review", "implementation review", "repo pattern", "migration review", "feasibility"],
+    "codex-reviewer": {
+        "name": "codex-reviewer",
+        "role": "Reviewer",
+        "trigger_tags": [
+            "architecture review",
+            "code review",
+            "patch review",
+            "regression",
+            "test",
+            "verification",
+            "repo pattern",
+            "migration review",
+            "feasibility",
+            "程式審查",
+        ],
         "rank": 2,
     },
     "codex-challenger": {
@@ -47,29 +58,23 @@ PROFILES = {
         "trigger_tags": ["review", "bug", "regression", "測試"],
         "rank": 1,
     },
-    "gemini-challenger": {
-        "name": "gemini-challenger",
+    "claude-challenger": {
+        "name": "claude-challenger",
         "role": "Red Team",
         "trigger_tags": ["risk", "edge case", "security", "風險"],
         "rank": 1,
     },
-    "gemini-researcher": {
-        "name": "gemini-researcher",
+    "claude-researcher": {
+        "name": "claude-researcher",
         "role": "Researcher",
         "trigger_tags": ["research", "docs", "官方文件", "法規", "api docs", "最新"],
         "rank": 1,
     },
-    "gemini-prototyper": {
-        "name": "gemini-prototyper",
+    "codex-prototyper": {
+        "name": "codex-prototyper",
         "role": "Prototyper",
         "trigger_tags": ["prototype from docs", "ui prototype", "context prototype", "multi-option", "草案"],
         "rank": 2,
-    },
-    "grok-prototyper": {
-        "name": "grok-prototyper",
-        "role": "Prototyper",
-        "trigger_tags": ["prototype", "spike", "demo"],
-        "rank": 3,
     },
 }
 
@@ -84,7 +89,6 @@ class DispatcherSelectionTests(unittest.TestCase):
         )
 
         self.assertEqual(targets[:2], ["claude-designer", "codex-builder"])
-        self.assertNotIn("grok-prototyper", targets)
 
     def test_specialized_same_role_agent_only_joins_when_its_tags_match(self):
         targets = select_dispatch_targets(
@@ -94,7 +98,7 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=4,
         )
 
-        self.assertIn("grok-prototyper", targets)
+        self.assertIn("codex-prototyper", targets)
 
     def test_review_task_selects_reviewer_and_challenger(self):
         targets = select_dispatch_targets(
@@ -105,9 +109,21 @@ class DispatcherSelectionTests(unittest.TestCase):
         )
 
         self.assertEqual(targets[0], "claude-reviewer")
-        self.assertIn("gemini-challenger", targets[:3])
+        self.assertIn("claude-challenger", targets[:3])
+        self.assertNotIn("codex-reviewer", targets)
 
-    def test_architecture_review_adds_codex_architecture_reviewer(self):
+    def test_code_review_adds_codex_xhigh_reviewer_as_second_opinion(self):
+        targets = select_dispatch_targets(
+            "code review this patch for tests, regressions, and verification gaps",
+            PROFILES,
+            active_names=list(PROFILES),
+            max_targets=4,
+        )
+
+        self.assertIn("claude-reviewer", targets)
+        self.assertIn("codex-reviewer", targets)
+
+    def test_architecture_review_adds_codex_xhigh_reviewer(self):
         targets = select_dispatch_targets(
             "review this migration for repo pattern, implementation feasibility, and architecture review",
             PROFILES,
@@ -116,7 +132,7 @@ class DispatcherSelectionTests(unittest.TestCase):
         )
 
         self.assertIn("claude-reviewer", targets)
-        self.assertIn("codex-architecture-reviewer", targets)
+        self.assertIn("codex-reviewer", targets)
 
     def test_engineering_challenge_selects_codex_challenger(self):
         targets = select_dispatch_targets(
@@ -128,7 +144,7 @@ class DispatcherSelectionTests(unittest.TestCase):
 
         self.assertEqual(targets[0], "codex-challenger")
 
-    def test_context_ui_prototype_selects_gemini_prototyper(self):
+    def test_context_ui_prototype_selects_codex_prototyper(self):
         targets = select_dispatch_targets(
             "make a UI prototype from docs and context, with multi-option草案",
             PROFILES,
@@ -136,9 +152,9 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=4,
         )
 
-        self.assertIn("gemini-prototyper", targets)
+        self.assertIn("codex-prototyper", targets)
 
-    def test_web_api_regulation_research_selects_gemini_researcher(self):
+    def test_web_api_regulation_research_selects_claude_researcher(self):
         targets = select_dispatch_targets(
             "請查最新法規、官方 API 文件和 rate limit 變更",
             PROFILES,
@@ -146,7 +162,7 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=3,
         )
 
-        self.assertEqual(targets[0], "gemini-researcher")
+        self.assertEqual(targets[0], "claude-researcher")
 
     def test_generic_prototype_does_not_false_match_ui_or_pr_keywords(self):
         targets = select_dispatch_targets(
@@ -156,7 +172,7 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=3,
         )
 
-        self.assertEqual(targets, ["grok-prototyper"])
+        self.assertEqual(targets, ["codex-prototyper"])
 
     def test_api_docs_research_does_not_pull_architecture_reviewers(self):
         targets = select_dispatch_targets(
@@ -166,7 +182,7 @@ class DispatcherSelectionTests(unittest.TestCase):
             max_targets=3,
         )
 
-        self.assertEqual(targets, ["gemini-researcher"])
+        self.assertEqual(targets, ["claude-researcher"])
 
     def test_unclear_task_falls_back_to_dispatcher(self):
         targets = select_dispatch_targets(

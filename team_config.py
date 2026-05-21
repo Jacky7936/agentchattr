@@ -26,10 +26,10 @@ LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS = (
     "架構",
     "資料流",
 )
-LEGACY_GEMINI_RESEARCHER_SPECIALTY = (
+LEGACY_RESEARCHER_SPECIALTY = (
     "Scan large context, compare documents, find contradictions, and summarise evidence quickly."
 )
-LEGACY_GEMINI_RESEARCHER_TRIGGER_TAGS = (
+LEGACY_RESEARCHER_TRIGGER_TAGS = (
     "research",
     "docs",
     "compare",
@@ -42,22 +42,31 @@ LEGACY_GEMINI_RESEARCHER_TRIGGER_TAGS = (
     "研究",
     "大量",
 )
-LEGACY_GEMINI_RESEARCHER_RESPONSIBILITIES = (
+LEGACY_RESEARCHER_RESPONSIBILITIES = (
     "Collect evidence and cite where it came from.",
     "Surface missing context before planning.",
 )
+LEGACY_CODEX_CHALLENGER_AVOID = ("Do not duplicate Gemini Challenger's broad spec/context challenge.",)
 
 LEGACY_FIELD_MIGRATIONS = {
     "codex-architect": {"trigger_tags": (LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS,)},
-    "gemini-researcher": {
-        "model": ("Gemini 3.5 Flash",),
-        "specialty": (LEGACY_GEMINI_RESEARCHER_SPECIALTY,),
-        "trigger_tags": (LEGACY_GEMINI_RESEARCHER_TRIGGER_TAGS,),
-        "responsibilities": (LEGACY_GEMINI_RESEARCHER_RESPONSIBILITIES,),
+    "codex-challenger": {"avoid": (LEGACY_CODEX_CHALLENGER_AVOID,)},
+    "claude-researcher": {
+        "specialty": (LEGACY_RESEARCHER_SPECIALTY,),
+        "trigger_tags": (LEGACY_RESEARCHER_TRIGGER_TAGS,),
+        "responsibilities": (LEGACY_RESEARCHER_RESPONSIBILITIES,),
     },
-    "gemini-challenger": {"model": ("Gemini 3.5 Flash",)},
-    "grok-prototyper": {"role": ("Builder",), "rank": (3,)},
 }
+
+RETIRED_DEFAULT_PROFILE_IDS = (
+    "codex-architecture-reviewer",
+    "codex-researcher",
+    "codex-spike-prototyper",
+    "gemini-researcher",
+    "gemini-challenger",
+    "gemini-prototyper",
+    "grok-prototyper",
+)
 
 
 DEFAULT_TEAM_PROFILES = {
@@ -67,6 +76,7 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Dispatcher",
         "role": "Dispatcher",
         "model": "Codex GPT-5.5",
+        "thinking_effort": "low",
         "specialty": "Classify incoming tasks and dispatch the smallest useful set of agents by role and specialty.",
         "trigger_tags": ["dispatch", "triage", "assign", "route", "who", "誰", "不確定", "派誰"],
         "rank": 1,
@@ -83,6 +93,7 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Planner",
         "role": "Planner",
         "model": "Codex GPT-5.5",
+        "thinking_effort": "xhigh",
         "specialty": "Turn ambiguous goals into ordered execution plans with constraints, risks, and success criteria.",
         "trigger_tags": ["plan", "planning", "roadmap", "spec", "scope", "requirements", "規劃", "計畫", "計劃", "需求"],
         "rank": 1,
@@ -96,6 +107,7 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Architect",
         "role": "Architect",
         "model": "Codex GPT-5.5",
+        "thinking_effort": "xhigh",
         "specialty": "Own architecture, data flow, repo fit, API boundaries, migrations, and implementation feasibility.",
         "trigger_tags": [
             "architecture",
@@ -115,30 +127,40 @@ DEFAULT_TEAM_PROFILES = {
         "avoid": ["Do not become the only reviewer for code you designed."],
         "output_contract": "Explain recommended architecture and the tradeoffs.",
     },
-    "codex-architecture-reviewer": {
+    "codex-reviewer": {
         "base": "codex",
-        "name": "codex-architecture-reviewer",
-        "label": "Codex Architecture Reviewer",
-        "role": "Architecture Reviewer",
+        "name": "codex-reviewer",
+        "label": "Codex Reviewer",
+        "role": "Reviewer",
         "model": "Codex GPT-5.5",
-        "specialty": "Review architecture, migrations, repo patterns, implementation feasibility, and integration fit.",
+        "thinking_effort": "xhigh",
+        "specialty": "Deep implementation and architecture review for repo-native bugs, regressions, tests, verification gaps, migration safety, and patch fit.",
         "trigger_tags": [
             "architecture review",
+            "code review",
             "implementation review",
+            "patch review",
+            "regression",
+            "test",
+            "verification",
             "repo pattern",
+            "repo-native",
             "migration review",
             "feasibility",
             "架構審查",
+            "程式審查",
             "資料庫遷移",
             "實作可行性",
+            "測試",
+            "驗證",
         ],
         "rank": 2,
         "responsibilities": [
-            "Check whether a plan fits the existing repo and implementation path.",
-            "Call out migration, data-flow, and abstraction risks with concrete alternatives.",
+            "Act as the Codex second-opinion reviewer for implementation-heavy changes.",
+            "Focus on concrete repo behavior, tests, integration risk, architecture fit, and verification evidence.",
         ],
-        "avoid": ["Do not replace Claude Reviewer for product-risk and bug-review breadth."],
-        "output_contract": "Find architecture and feasibility risks first, then recommend the smallest reliable implementation path.",
+        "avoid": ["Do not duplicate Claude Reviewer's product-risk pass unless code evidence changes the conclusion."],
+        "output_contract": "Find implementation and verification issues first, with file/line evidence and the smallest corrective path.",
     },
     "codex-builder": {
         "base": "codex",
@@ -146,6 +168,7 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Builder",
         "role": "Builder",
         "model": "Codex GPT-5.5",
+        "thinking_effort": "xhigh",
         "specialty": "Implement production code changes, tests, refactors, and repo-native fixes.",
         "trigger_tags": ["implement", "build", "fix", "code", "frontend", "backend", "test", "實作", "修正", "修"],
         "rank": 1,
@@ -159,6 +182,7 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Claude Designer",
         "role": "Designer",
         "model": "Claude Code Opus 4.7",
+        "thinking_effort": "max",
         "specialty": "Lead UI/UX direction, information architecture, flows, critique, copy, and visual hierarchy.",
         "trigger_tags": ["ui", "ux", "design", "layout", "wireframe", "mockup", "pencil", "visual", "設計", "畫面", "介面"],
         "rank": 1,
@@ -172,6 +196,7 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Claude Reviewer",
         "role": "Reviewer",
         "model": "Claude Code Opus 4.7",
+        "thinking_effort": "max",
         "specialty": "Lead code review for bugs, regressions, tests, maintainability, and product-risk issues.",
         "trigger_tags": ["review", "bug", "regression", "test", "maintainability", "pr", "檢查", "審查", "測試"],
         "rank": 1,
@@ -179,12 +204,13 @@ DEFAULT_TEAM_PROFILES = {
         "avoid": ["Do not rewrite the feature unless asked."],
         "output_contract": "Findings first, ordered by severity, with test gaps and residual risk.",
     },
-    "gemini-researcher": {
-        "base": "antigravity",
-        "name": "gemini-researcher",
-        "label": "Gemini Researcher",
+    "claude-researcher": {
+        "base": "claude",
+        "name": "claude-researcher",
+        "label": "Claude Researcher",
         "role": "Researcher",
-        "model": "Gemini 3.5 Flash (High)",
+        "model": "Claude Code Sonnet 4.6",
+        "thinking_effort": "high",
         "specialty": "Scan large context and web/current sources for laws, official API docs, policy changes, contradictions, and evidence.",
         "trigger_tags": [
             "research",
@@ -219,12 +245,13 @@ DEFAULT_TEAM_PROFILES = {
         "avoid": ["Do not be final authority for production code changes."],
         "output_contract": "Summarise evidence, gaps, and recommended next checks.",
     },
-    "gemini-challenger": {
-        "base": "antigravity",
-        "name": "gemini-challenger",
-        "label": "Gemini Challenger",
+    "claude-challenger": {
+        "base": "claude",
+        "name": "claude-challenger",
+        "label": "Claude Challenger",
         "role": "Red Team",
-        "model": "Gemini 3.5 Flash (High)",
+        "model": "Claude Code Opus 4.7",
+        "thinking_effort": "max",
         "specialty": "Challenge assumptions, scan for edge cases, security risk, permission mistakes, and spec gaps.",
         "trigger_tags": ["red team", "challenge", "risk", "edge case", "security", "漏洞", "風險", "權限", "矛盾"],
         "rank": 2,
@@ -238,6 +265,7 @@ DEFAULT_TEAM_PROFILES = {
         "label": "Codex Challenger",
         "role": "Engineering Challenger",
         "model": "Codex GPT-5.5",
+        "thinking_effort": "xhigh",
         "specialty": "Challenge engineering plans for feasibility, migration safety, repo-pattern drift, overengineering, and test strategy.",
         "trigger_tags": [
             "engineering risk",
@@ -255,46 +283,43 @@ DEFAULT_TEAM_PROFILES = {
             "Pressure-test the implementation path before work starts.",
             "Suggest smaller, safer alternatives when a plan is too risky.",
         ],
-        "avoid": ["Do not duplicate Gemini Challenger's broad spec/context challenge."],
+        "avoid": ["Do not duplicate Claude Challenger's broad spec/context challenge."],
         "output_contract": "List the engineering breakpoints, why they matter, and the safer implementation path.",
     },
-    "gemini-prototyper": {
-        "base": "antigravity",
-        "name": "gemini-prototyper",
-        "label": "Gemini Prototyper",
+    "codex-prototyper": {
+        "base": "codex",
+        "name": "codex-prototyper",
+        "label": "Codex Prototyper",
         "role": "Prototyper",
-        "model": "Gemini 3.5 Flash (High)",
-        "specialty": "Create context-heavy UI drafts, multi-option prototypes, and document/spec-to-demo explorations.",
+        "model": "Codex GPT-5.5",
+        "thinking_effort": "xhigh",
+        "specialty": "Create context-heavy UI drafts, multi-option prototypes, document/spec-to-demo explorations, quick spikes, and alternate implementation drafts.",
         "trigger_tags": [
+            "prototype",
             "prototype from docs",
             "ui prototype",
             "context prototype",
             "multi-option",
             "wireframe",
+            "spike",
+            "demo",
+            "quick",
+            "experiment",
+            "alternative",
             "草案",
             "多方案",
             "文件轉原型",
+            "原型",
+            "快速",
         ],
         "rank": 2,
         "responsibilities": [
             "Explore quick UI or workflow prototype options from large context.",
+            "Move fast on low-risk exploratory spikes.",
             "Keep outputs explicitly exploratory and ready for production handoff.",
         ],
         "avoid": ["Do not own final production merge or final architecture."],
         "output_contract": "Show the prototype direction, compared options, assumptions, and what Codex Builder should productionise.",
-    },
-    "grok-prototyper": {
-        "base": "grok",
-        "name": "grok-prototyper",
-        "label": "Grok Prototyper",
-        "role": "Prototyper",
-        "model": "Grok Build",
-        "specialty": "Build quick prototypes, spikes, demos, and alternate implementation drafts for low-risk exploration.",
-        "trigger_tags": ["prototype", "spike", "demo", "quick", "experiment", "alternative", "grok", "原型", "快速"],
-        "rank": 1,
-        "responsibilities": ["Move fast on exploratory work.", "Keep prototypes isolated and easy to discard."],
-        "avoid": ["Do not own final architecture or final review."],
-        "output_contract": "Show what was tried, what worked, and what should be productionised by the main builder.",
     },
 }
 
@@ -309,7 +334,7 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
         if profile["base"] not in agents_config:
             continue
         profile = {"runtime_policy": NONBLOCKING_RUNTIME_POLICY, **profile}
-        force_fields = ["base"]
+        force_fields = ["base", "thinking_effort"]
         existing = store.get(profile_id) or {}
         for field, legacy_values in LEGACY_FIELD_MIGRATIONS.get(profile_id, {}).items():
             existing_value = existing.get(field)
@@ -319,7 +344,8 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
         if updated:
             seeded[profile_id] = updated
 
-    _seed_roles_file(data_path / "roles.json", seeded)
+    store.delete_profiles(RETIRED_DEFAULT_PROFILE_IDS)
+    _seed_roles_file(data_path / "roles.json", seeded, retired_profile_ids=RETIRED_DEFAULT_PROFILE_IDS)
     return seeded
 
 
@@ -335,7 +361,7 @@ def _legacy_value_matches(existing_value, legacy_value) -> bool:
     return existing_value == legacy_value
 
 
-def _seed_roles_file(path: Path, profiles: dict[str, dict]) -> None:
+def _seed_roles_file(path: Path, profiles: dict[str, dict], *, retired_profile_ids: tuple[str, ...] = ()) -> None:
     try:
         roles = json.loads(path.read_text("utf-8")) if path.exists() else {}
     except Exception:
@@ -344,6 +370,10 @@ def _seed_roles_file(path: Path, profiles: dict[str, dict]) -> None:
         roles = {}
 
     changed = False
+    for profile_id in retired_profile_ids:
+        if roles.pop(profile_id, None) is not None:
+            changed = True
+
     for profile in profiles.values():
         name = str(profile.get("name", "")).strip()
         role = str(profile.get("role", "")).strip()

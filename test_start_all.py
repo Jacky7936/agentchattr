@@ -11,14 +11,13 @@ class StartAllTeamLaunchTest(unittest.TestCase):
             "codex-planner": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-builder": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-architect": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
-            "codex-architecture-reviewer": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
+            "codex-reviewer": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-challenger": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "claude-reviewer": ("wrapper.py claude", "--permission-mode auto"),
             "claude-designer": ("wrapper.py claude", "--permission-mode auto"),
-            "gemini-researcher": ("wrapper.py antigravity", "--dangerously-skip-permissions"),
-            "gemini-challenger": ("wrapper.py antigravity", "--dangerously-skip-permissions"),
-            "gemini-prototyper": ("wrapper.py antigravity", "--dangerously-skip-permissions"),
-            "grok-prototyper": ("wrapper.py grok", "--always-approve"),
+            "claude-researcher": ("wrapper.py claude", "--permission-mode auto"),
+            "claude-challenger": ("wrapper.py claude", "--permission-mode auto"),
+            "codex-prototyper": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
         }
 
         for profile, (provider, flag) in expected.items():
@@ -26,6 +25,9 @@ class StartAllTeamLaunchTest(unittest.TestCase):
                 command = self._launch_command(script, profile)
                 self.assertIn(provider, command)
                 self.assertIn(flag, command)
+
+        self.assertNotIn("--profile codex-architecture-reviewer", script)
+        self.assertNotIn("--profile codex-spike-prototyper", script)
 
     def _launch_command(self, script: str, profile: str) -> str:
         match = re.search(rf'(?m)^(?:start_agent\s+)?"([^"]*--profile {re.escape(profile)}[^"]*)"', script)

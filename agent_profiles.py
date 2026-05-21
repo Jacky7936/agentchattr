@@ -151,6 +151,18 @@ class AgentProfileStore:
         with self._lock:
             return {k: dict(v) for k, v in self._profiles.items()}
 
+    def delete_profiles(self, profile_ids: list[str] | tuple[str, ...] | set[str]) -> bool:
+        changed = False
+        with self._lock:
+            for profile_id in profile_ids:
+                pid = normalize_profile_id(str(profile_id))
+                if pid and pid in self._profiles:
+                    del self._profiles[pid]
+                    changed = True
+        if changed:
+            self._save()
+        return changed
+
     def get_by_name(self, name: str) -> dict | None:
         clean_name = normalize_profile_id(name)
         if not clean_name:

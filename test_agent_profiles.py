@@ -203,33 +203,146 @@ class AgentProfileStoreTest(unittest.TestCase):
             store = AgentProfileStore(profiles_path, AGENTS)
             profiles = store.get_all()
             self.assertIn("codex-dispatcher", profiles)
-            self.assertIn("gemini-researcher", profiles)
-            self.assertIn("gemini-challenger", profiles)
-            self.assertIn("codex-architecture-reviewer", profiles)
+            self.assertIn("codex-reviewer", profiles)
             self.assertIn("codex-challenger", profiles)
-            self.assertIn("gemini-prototyper", profiles)
-            self.assertIn("grok-prototyper", profiles)
+            self.assertIn("claude-researcher", profiles)
+            self.assertIn("claude-challenger", profiles)
+            self.assertIn("codex-prototyper", profiles)
+            self.assertNotIn("codex-architecture-reviewer", profiles)
+            self.assertNotIn("codex-researcher", profiles)
+            self.assertNotIn("codex-spike-prototyper", profiles)
+            self.assertNotIn("gemini-researcher", profiles)
+            self.assertNotIn("gemini-challenger", profiles)
+            self.assertNotIn("gemini-prototyper", profiles)
+            self.assertNotIn("grok-prototyper", profiles)
             self.assertEqual(profiles["codex-dispatcher"]["role"], "Dispatcher")
-            self.assertEqual(profiles["codex-architecture-reviewer"]["base"], "codex")
-            self.assertEqual(profiles["codex-architecture-reviewer"]["role"], "Architecture Reviewer")
+            self.assertEqual(profiles["codex-reviewer"]["base"], "codex")
+            self.assertEqual(profiles["codex-reviewer"]["role"], "Reviewer")
+            self.assertEqual(profiles["codex-reviewer"]["model"], "Codex GPT-5.5")
+            self.assertEqual(profiles["codex-reviewer"]["thinking_effort"], "xhigh")
+            self.assertIn("architecture review", profiles["codex-reviewer"]["trigger_tags"])
             self.assertEqual(profiles["codex-challenger"]["role"], "Engineering Challenger")
-            self.assertEqual(profiles["gemini-researcher"]["base"], "antigravity")
-            self.assertEqual(profiles["gemini-researcher"]["model"], "Gemini 3.5 Flash (High)")
-            self.assertIn("法規", profiles["gemini-researcher"]["trigger_tags"])
-            self.assertIn("api docs", profiles["gemini-researcher"]["trigger_tags"])
-            self.assertIn("official docs", profiles["gemini-researcher"]["trigger_tags"])
-            self.assertEqual(profiles["gemini-challenger"]["base"], "antigravity")
-            self.assertEqual(profiles["gemini-challenger"]["model"], "Gemini 3.5 Flash (High)")
-            self.assertEqual(profiles["gemini-prototyper"]["base"], "antigravity")
-            self.assertEqual(profiles["gemini-prototyper"]["model"], "Gemini 3.5 Flash (High)")
-            self.assertEqual(profiles["gemini-prototyper"]["role"], "Prototyper")
-            self.assertEqual(profiles["grok-prototyper"]["role"], "Prototyper")
+            self.assertEqual(profiles["claude-researcher"]["base"], "claude")
+            self.assertEqual(profiles["claude-researcher"]["model"], "Claude Code Sonnet 4.6")
+            self.assertEqual(profiles["claude-researcher"]["thinking_effort"], "high")
+            self.assertIn("法規", profiles["claude-researcher"]["trigger_tags"])
+            self.assertIn("api docs", profiles["claude-researcher"]["trigger_tags"])
+            self.assertIn("official docs", profiles["claude-researcher"]["trigger_tags"])
+            self.assertEqual(profiles["claude-challenger"]["base"], "claude")
+            self.assertEqual(profiles["claude-challenger"]["model"], "Claude Code Opus 4.7")
+            self.assertEqual(profiles["claude-challenger"]["thinking_effort"], "max")
+            self.assertEqual(profiles["codex-prototyper"]["base"], "codex")
+            self.assertEqual(profiles["codex-prototyper"]["model"], "Codex GPT-5.5")
+            self.assertEqual(profiles["codex-prototyper"]["thinking_effort"], "xhigh")
+            self.assertEqual(profiles["codex-prototyper"]["role"], "Prototyper")
+            self.assertIn("spike", profiles["codex-prototyper"]["trigger_tags"])
             self.assertEqual(profiles["claude-reviewer"]["role"], "My Custom Reviewer")
             self.assertEqual(profiles["claude-reviewer"]["model"], "Custom Claude Model")
             self.assertIn("trigger_tags", profiles["claude-reviewer"])
             self.assertIn("auto-approval mode", profiles["claude-reviewer"]["runtime_policy"])
 
-    def test_default_team_migrates_gemini_profiles_to_antigravity_runtime(self):
+    def test_default_team_fills_existing_minimal_codex_reviewer_metadata(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "codex-reviewer": {
+                            "base": "codex",
+                            "name": "codex-reviewer",
+                            "label": "Codex Reviewer",
+                            "role": "Reviewer",
+                        }
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            profile = AgentProfileStore(profiles_path, AGENTS).get("codex-reviewer")
+            self.assertEqual(profile["model"], "Codex GPT-5.5")
+            self.assertEqual(profile["thinking_effort"], "xhigh")
+            self.assertIn("code review", profile["trigger_tags"])
+
+    def test_default_team_profiles_all_declare_model_and_thinking_effort(self):
+        from team_config import DEFAULT_TEAM_PROFILES
+
+        for profile_id, profile in DEFAULT_TEAM_PROFILES.items():
+            with self.subTest(profile=profile_id):
+                self.assertTrue(profile.get("model"))
+                self.assertTrue(profile.get("thinking_effort"))
+
+    def test_default_team_thinking_effort_policy(self):
+        from team_config import DEFAULT_TEAM_PROFILES
+
+        codex_xhigh = {
+            "codex-planner",
+            "codex-architect",
+            "codex-builder",
+            "codex-challenger",
+            "codex-prototyper",
+        }
+        for profile_id in codex_xhigh:
+            with self.subTest(profile=profile_id):
+                self.assertEqual(DEFAULT_TEAM_PROFILES[profile_id]["thinking_effort"], "xhigh")
+
+        for profile_id, profile in DEFAULT_TEAM_PROFILES.items():
+            if profile["model"] == "Claude Code Opus 4.7":
+                with self.subTest(profile=profile_id):
+                    self.assertEqual(profile["thinking_effort"], "max")
+
+        self.assertEqual(DEFAULT_TEAM_PROFILES["claude-researcher"]["thinking_effort"], "high")
+
+    def test_default_team_updates_existing_thinking_effort_policy(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "codex-planner": {
+                            "base": "codex",
+                            "name": "codex-planner",
+                            "label": "Codex Planner",
+                            "role": "Planner",
+                            "model": "Codex GPT-5.5",
+                            "thinking_effort": "high",
+                        },
+                        "claude-reviewer": {
+                            "base": "claude",
+                            "name": "claude-reviewer",
+                            "label": "Claude Reviewer",
+                            "role": "Reviewer",
+                            "model": "Claude Code Opus 4.7",
+                            "thinking_effort": "high",
+                        },
+                        "claude-researcher": {
+                            "base": "claude",
+                            "name": "claude-researcher",
+                            "label": "Claude Researcher",
+                            "role": "Researcher",
+                            "model": "Claude Code Sonnet 4.6",
+                            "thinking_effort": "medium",
+                        },
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            profiles = AgentProfileStore(profiles_path, AGENTS).get_all()
+            self.assertEqual(profiles["codex-planner"]["thinking_effort"], "xhigh")
+            self.assertEqual(profiles["claude-reviewer"]["thinking_effort"], "max")
+            self.assertEqual(profiles["claude-researcher"]["thinking_effort"], "high")
+
+    def test_default_team_removes_retired_antigravity_and_grok_profiles(self):
         from team_config import apply_default_team_profiles
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,63 +357,34 @@ class AgentProfileStoreTest(unittest.TestCase):
                             "label": "Gemini Researcher",
                             "role": "Researcher",
                             "model": "Gemini 3.5 Flash",
-                        }
-                    }
-                ),
-                "utf-8",
-            )
-
-            apply_default_team_profiles(data_dir, AGENTS)
-
-            store = AgentProfileStore(profiles_path, AGENTS)
-            profile = store.get("gemini-researcher")
-            self.assertEqual(profile["base"], "antigravity")
-            self.assertEqual(profile["model"], "Gemini 3.5 Flash (High)")
-
-    def test_default_team_preserves_custom_gemini_model_when_migrating_runtime(self):
-        from team_config import apply_default_team_profiles
-
-        with tempfile.TemporaryDirectory() as tmp:
-            data_dir = Path(tmp)
-            profiles_path = data_dir / "agent_profiles.json"
-            profiles_path.write_text(
-                json.dumps(
-                    {
-                        "gemini-researcher": {
-                            "base": "gemini",
-                            "name": "gemini-researcher",
-                            "label": "Gemini Researcher",
-                            "role": "Researcher",
-                            "model": "Custom Gemini Model",
-                        }
-                    }
-                ),
-                "utf-8",
-            )
-
-            apply_default_team_profiles(data_dir, AGENTS)
-
-            store = AgentProfileStore(profiles_path, AGENTS)
-            profile = store.get("gemini-researcher")
-            self.assertEqual(profile["base"], "antigravity")
-            self.assertEqual(profile["model"], "Custom Gemini Model")
-
-    def test_default_team_migrates_grok_prototyper_legacy_builder_role(self):
-        from team_config import apply_default_team_profiles
-
-        with tempfile.TemporaryDirectory() as tmp:
-            data_dir = Path(tmp)
-            profiles_path = data_dir / "agent_profiles.json"
-            profiles_path.write_text(
-                json.dumps(
-                    {
+                        },
+                        "gemini-challenger": {
+                            "base": "antigravity",
+                            "name": "gemini-challenger",
+                            "label": "Gemini Challenger",
+                            "role": "Red Team",
+                            "model": "Gemini 3.5 Flash (High)",
+                        },
+                        "gemini-prototyper": {
+                            "base": "antigravity",
+                            "name": "gemini-prototyper",
+                            "label": "Gemini Prototyper",
+                            "role": "Prototyper",
+                            "model": "Gemini 3.5 Flash (High)",
+                        },
                         "grok-prototyper": {
                             "base": "grok",
                             "name": "grok-prototyper",
                             "label": "Grok Prototyper",
-                            "role": "Builder",
+                            "role": "Prototyper",
                             "model": "Grok Build",
-                        }
+                        },
+                        "codex-researcher": {
+                            "base": "codex",
+                            "name": "codex-researcher",
+                            "label": "Codex Researcher",
+                            "role": "Researcher",
+                        },
                     }
                 ),
                 "utf-8",
@@ -309,23 +393,47 @@ class AgentProfileStoreTest(unittest.TestCase):
             apply_default_team_profiles(data_dir, AGENTS)
 
             store = AgentProfileStore(profiles_path, AGENTS)
-            profile = store.get("grok-prototyper")
-            self.assertEqual(profile["role"], "Prototyper")
+            profiles = store.get_all()
+            self.assertNotIn("gemini-researcher", profiles)
+            self.assertNotIn("gemini-challenger", profiles)
+            self.assertNotIn("gemini-prototyper", profiles)
+            self.assertNotIn("grok-prototyper", profiles)
+            self.assertNotIn("codex-researcher", profiles)
+            self.assertEqual(profiles["claude-researcher"]["model"], "Claude Code Sonnet 4.6")
+            self.assertEqual(profiles["claude-challenger"]["model"], "Claude Code Opus 4.7")
+            self.assertEqual(profiles["codex-prototyper"]["model"], "Codex GPT-5.5")
+            self.assertNotIn("codex-spike-prototyper", profiles)
 
-    def test_default_team_syncs_roles_file_when_legacy_role_is_migrated(self):
+    def test_default_team_syncs_roles_file_when_retired_profiles_are_replaced(self):
         from team_config import apply_default_team_profiles
 
         with tempfile.TemporaryDirectory() as tmp:
             data_dir = Path(tmp)
             (data_dir / "roles.json").write_text(
-                json.dumps({"grok-prototyper": "Builder"}),
+                json.dumps(
+                    {
+                        "gemini-researcher": "Researcher",
+                        "gemini-challenger": "Red Team",
+                        "gemini-prototyper": "Prototyper",
+                        "grok-prototyper": "Builder",
+                        "codex-researcher": "Researcher",
+                    }
+                ),
                 "utf-8",
             )
 
             apply_default_team_profiles(data_dir, AGENTS)
 
             roles = json.loads((data_dir / "roles.json").read_text("utf-8"))
-            self.assertEqual(roles["grok-prototyper"], "Prototyper")
+            self.assertNotIn("gemini-researcher", roles)
+            self.assertNotIn("gemini-challenger", roles)
+            self.assertNotIn("gemini-prototyper", roles)
+            self.assertNotIn("grok-prototyper", roles)
+            self.assertNotIn("codex-researcher", roles)
+            self.assertEqual(roles["claude-researcher"], "Researcher")
+            self.assertEqual(roles["claude-challenger"], "Red Team")
+            self.assertEqual(roles["codex-prototyper"], "Prototyper")
+            self.assertNotIn("codex-spike-prototyper", roles)
 
     def test_default_team_migrates_legacy_research_and_architect_metadata(self):
         from team_config import apply_default_team_profiles
@@ -353,12 +461,12 @@ class AgentProfileStoreTest(unittest.TestCase):
                                 "資料流",
                             ],
                         },
-                        "gemini-researcher": {
-                            "base": "antigravity",
-                            "name": "gemini-researcher",
-                            "label": "Gemini Researcher",
+                        "claude-researcher": {
+                            "base": "claude",
+                            "name": "claude-researcher",
+                            "label": "Claude Researcher",
                             "role": "Researcher",
-                            "model": "Gemini 3.5 Flash (High)",
+                            "model": "Claude Code Sonnet 4.6",
                             "specialty": "Scan large context, compare documents, find contradictions, and summarise evidence quickly.",
                             "trigger_tags": [
                                 "research",
@@ -378,6 +486,13 @@ class AgentProfileStoreTest(unittest.TestCase):
                                 "Surface missing context before planning.",
                             ],
                         },
+                        "codex-challenger": {
+                            "base": "codex",
+                            "name": "codex-challenger",
+                            "label": "Codex Challenger",
+                            "role": "Engineering Challenger",
+                            "avoid": ["Do not duplicate Gemini Challenger's broad spec/context challenge."],
+                        },
                     }
                 ),
                 "utf-8",
@@ -388,12 +503,16 @@ class AgentProfileStoreTest(unittest.TestCase):
             profiles = AgentProfileStore(profiles_path, AGENTS).get_all()
             self.assertNotIn("api", profiles["codex-architect"]["trigger_tags"])
             self.assertIn("api design", profiles["codex-architect"]["trigger_tags"])
-            self.assertIn("web/current sources", profiles["gemini-researcher"]["specialty"])
-            self.assertIn("official docs", profiles["gemini-researcher"]["trigger_tags"])
-            self.assertIn("法規", profiles["gemini-researcher"]["trigger_tags"])
+            self.assertIn("web/current sources", profiles["claude-researcher"]["specialty"])
+            self.assertIn("official docs", profiles["claude-researcher"]["trigger_tags"])
+            self.assertIn("法規", profiles["claude-researcher"]["trigger_tags"])
             self.assertIn(
                 "Prefer primary sources such as official API docs, laws, standards, and release notes.",
-                profiles["gemini-researcher"]["responsibilities"],
+                profiles["claude-researcher"]["responsibilities"],
+            )
+            self.assertEqual(
+                profiles["codex-challenger"]["avoid"],
+                ["Do not duplicate Claude Challenger's broad spec/context challenge."],
             )
 
 
