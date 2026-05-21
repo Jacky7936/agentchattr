@@ -97,6 +97,9 @@ temperature = 1.0
 # "none" = only route on explicit @mention. "all" = route to all agents by default.
 default = "none"
 max_agent_hops = 4
+auto_dispatch = true
+auto_dispatch_max_targets = 3
+auto_dispatch_announce = true
 
 [mcp]
 http_port = 8200

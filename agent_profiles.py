@@ -12,6 +12,8 @@ _NAME_RE = re.compile(r"[^a-z0-9-]")
 _ALIASES = {
     "codex-reviwer": "codex-reviewer",
 }
+_CORE_PROFILE_FIELDS = {"base", "name", "label", "role"}
+_LIST_METADATA_FIELDS = {"trigger_tags", "responsibilities", "avoid"}
 
 
 def normalize_profile_id(value: str) -> str:
@@ -149,6 +151,46 @@ class AgentProfileStore:
         with self._lock:
             return {k: dict(v) for k, v in self._profiles.items()}
 
+    def get_by_name(self, name: str) -> dict | None:
+        clean_name = normalize_profile_id(name)
+        if not clean_name:
+            return None
+        with self._lock:
+            profile = self._profiles.get(clean_name)
+            if profile:
+                return dict(profile)
+            pid = self._find_profile_id_by_name_locked(clean_name)
+            profile = self._profiles.get(pid) if pid else None
+            return dict(profile) if profile else None
+
+    def upsert_profile(
+        self,
+        profile_id: str,
+        profile: dict,
+        *,
+        preserve_existing: bool = True,
+    ) -> dict | None:
+        pid = normalize_profile_id(profile_id)
+        if not pid:
+            return None
+        clean = self._normalize_profile(pid, profile)
+        if not clean:
+            return None
+        with self._lock:
+            if preserve_existing and pid in self._profiles:
+                existing = self._profiles[pid]
+                merged = dict(existing)
+                for key, value in clean.items():
+                    if self._is_missing_metadata_value(merged.get(key)):
+                        merged[key] = value
+                self._profiles[pid] = merged
+                result = dict(merged)
+            else:
+                self._profiles[pid] = clean
+                result = dict(clean)
+        self._save()
+        return result
+
     def infer_base(self, name: str) -> str:
         clean = normalize_profile_id(name)
         if clean in self._agents_config:
@@ -235,7 +277,52 @@ class AgentProfileStore:
         name = _ALIASES.get(name, name)
         role = str(profile.get("role", "")).strip()
         label = str(profile.get("label", "")).strip() or self._derive_label(base, role, fallback_name=name)
-        return {"base": base, "name": name, "label": label, "role": role}
+        clean = {"base": base, "name": name, "label": label, "role": role}
+        clean.update(self._normalize_metadata(profile))
+        return clean
+
+    def _normalize_metadata(self, profile: dict) -> dict:
+        metadata: dict = {}
+        for key, value in profile.items():
+            if key in _CORE_PROFILE_FIELDS:
+                continue
+            if key in _LIST_METADATA_FIELDS:
+                normalized = self._normalize_string_list(value)
+                if normalized:
+                    metadata[key] = normalized
+                continue
+            if key == "rank":
+                try:
+                    metadata[key] = int(value)
+                except (TypeError, ValueError):
+                    continue
+                continue
+            if isinstance(value, str):
+                value = value.strip()
+                if value:
+                    metadata[key] = value
+                continue
+            if isinstance(value, (int, float, bool)) or value is None:
+                metadata[key] = value
+                continue
+            if isinstance(value, list):
+                metadata[key] = [v for v in value if v not in ("", None)]
+                continue
+            if isinstance(value, dict):
+                metadata[key] = value
+        return metadata
+
+    def _normalize_string_list(self, value) -> list[str]:
+        raw = value if isinstance(value, list) else [value]
+        out = []
+        for item in raw:
+            text = str(item).strip()
+            if text:
+                out.append(text)
+        return out
+
+    def _is_missing_metadata_value(self, value) -> bool:
+        return value in (None, "", [], {})
 
     def _fill_missing_locked(self, profile_id: str, profile: dict, base: str) -> bool:
         changed = False

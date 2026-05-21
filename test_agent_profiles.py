@@ -10,6 +10,8 @@ from registry import RuntimeRegistry
 AGENTS = {
     "codex": {"label": "Codex", "color": "#10a37f"},
     "claude": {"label": "Claude", "color": "#da7756"},
+    "gemini": {"label": "Gemini", "color": "#4285f4"},
+    "grok": {"label": "Grok Build", "color": "#06b6d4"},
 }
 
 
@@ -130,6 +132,84 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profile["name"], "codex-reviewer")
             self.assertEqual(profile["label"], "Codex Reviewer")
             self.assertEqual(profile["role"], "Reviewer")
+
+    def test_profile_metadata_survives_load_and_role_updates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            profiles_path = Path(tmp) / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "claude-reviewer": {
+                            "base": "claude",
+                            "name": "claude-reviewer",
+                            "label": "Claude Reviewer",
+                            "role": "Reviewer",
+                            "model": "Claude Code Opus 4.7",
+                            "specialty": "Find regressions and missing tests.",
+                            "trigger_tags": ["review", "bug", "regression"],
+                            "rank": 1,
+                            "responsibilities": ["Lead bug review"],
+                            "avoid": ["Do not implement unless asked"],
+                            "output_contract": "Findings first.",
+                        }
+                    }
+                ),
+                "utf-8",
+            )
+
+            store = AgentProfileStore(profiles_path, AGENTS)
+            profile = store.get("claude-reviewer")
+            self.assertEqual(profile["model"], "Claude Code Opus 4.7")
+            self.assertEqual(profile["specialty"], "Find regressions and missing tests.")
+            self.assertEqual(profile["trigger_tags"], ["review", "bug", "regression"])
+            self.assertEqual(profile["rank"], 1)
+
+            store.update_role_for_name(
+                "claude-reviewer",
+                "Security Reviewer",
+                base="claude",
+                profile_id="claude-reviewer",
+                label="Claude Reviewer",
+            )
+            updated = store.get("claude-reviewer")
+            self.assertEqual(updated["role"], "Security Reviewer")
+            self.assertEqual(updated["specialty"], "Find regressions and missing tests.")
+            self.assertEqual(updated["responsibilities"], ["Lead bug review"])
+
+    def test_default_team_profiles_seed_missing_metadata_without_overwriting_user_changes(self):
+        from team_config import apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "claude-reviewer": {
+                            "base": "claude",
+                            "name": "claude-reviewer",
+                            "label": "Claude Reviewer",
+                            "role": "My Custom Reviewer",
+                            "model": "Custom Claude Model",
+                        }
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            store = AgentProfileStore(profiles_path, AGENTS)
+            profiles = store.get_all()
+            self.assertIn("codex-dispatcher", profiles)
+            self.assertIn("gemini-researcher", profiles)
+            self.assertIn("gemini-challenger", profiles)
+            self.assertIn("grok-prototyper", profiles)
+            self.assertEqual(profiles["codex-dispatcher"]["role"], "Dispatcher")
+            self.assertEqual(profiles["claude-reviewer"]["role"], "My Custom Reviewer")
+            self.assertEqual(profiles["claude-reviewer"]["model"], "Custom Claude Model")
+            self.assertIn("trigger_tags", profiles["claude-reviewer"])
+            self.assertIn("auto-approval mode", profiles["claude-reviewer"]["runtime_policy"])
 
 
 if __name__ == "__main__":

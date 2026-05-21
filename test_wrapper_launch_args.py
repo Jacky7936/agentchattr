@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from wrapper import _build_provider_launch
+from wrapper import _build_provider_launch, _format_profile_context
 from mcp_bridge import _MCP_INSTRUCTIONS
 
 
@@ -184,6 +184,19 @@ class WrapperLaunchArgsTest(unittest.TestCase):
 
     def test_mcp_instructions_include_grok_base_identity(self):
         self.assertIn('base: "grok"', _MCP_INSTRUCTIONS)
+
+    def test_profile_context_includes_runtime_policy(self):
+        formatted = _format_profile_context(
+            {
+                "role": "Reviewer",
+                "model": "Claude Code Opus 4.7",
+                "runtime_policy": "Start and operate in non-blocking auto-approval mode.",
+            }
+        )
+
+        self.assertIn("ROLE: Reviewer", formatted)
+        self.assertIn("MODEL: Claude Code Opus 4.7", formatted)
+        self.assertIn("RUNTIME POLICY: Start and operate in non-blocking auto-approval mode.", formatted)
 
 
 if __name__ == "__main__":

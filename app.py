@@ -23,6 +23,7 @@ from router import Router
 from agents import AgentTrigger
 from registry import RuntimeRegistry
 from agent_profiles import AgentProfileStore, normalize_profile_id
+from dispatcher import select_dispatch_targets
 from session_store import SessionStore, validate_session_template
 from session_engine import SessionEngine
 
@@ -213,7 +214,10 @@ def install_security_middleware(target_app: FastAPI, token: str, cfg: dict):
             # Allow registered agents to authenticate via Bearer token
             # for /api/messages and /api/send (no browser session needed).
             auth_header = request.headers.get("authorization", "")
-            if auth_header.lower().startswith("bearer ") and (path in ("/api/messages", "/api/send") or path.startswith("/api/rules/")):
+            if auth_header.lower().startswith("bearer ") and (
+                path in ("/api/messages", "/api/send")
+                or path.startswith(("/api/rules/", "/api/agent-profiles/"))
+            ):
                 bearer = auth_header[7:].strip()
                 if _self.registry and _self.registry.resolve_token(bearer):
                     return await call_next(request)
@@ -648,6 +652,47 @@ def _resolve_draft_lineage(text: str, channel: str) -> tuple[str, int]:
     return str(uuid.uuid4())[:8], 1
 
 
+def _routing_int(key: str, default: int) -> int:
+    try:
+        return int(config.get("routing", {}).get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _auto_dispatch_enabled() -> bool:
+    return bool(config.get("routing", {}).get("auto_dispatch", False))
+
+
+def _should_auto_dispatch(sender: str, text: str, msg_type: str, stripped: str, known_agents: set[str]) -> bool:
+    return (
+        _auto_dispatch_enabled()
+        and msg_type == "chat"
+        and bool(text.strip())
+        and sender not in known_agents
+        and not stripped.startswith("/")
+    )
+
+
+def _select_auto_dispatch_targets(text: str) -> list[str]:
+    if not agent_profiles:
+        return []
+    active_names = registry.get_active_names() if registry else None
+    return select_dispatch_targets(
+        text,
+        agent_profiles.get_all(),
+        active_names=active_names,
+        max_targets=_routing_int("auto_dispatch_max_targets", 3),
+    )
+
+
+def _auto_dispatch_prompt(channel: str) -> str:
+    return (
+        f"use mcp to read #{channel} - you were auto-dispatched because your "
+        "profile role/specialty matches the latest user task. Take appropriate "
+        "action and respond in the channel."
+    )
+
+
 async def _handle_new_message(msg: dict):
     """Broadcast message to web clients + check for @mention triggers."""
     # For broadcast slash commands, suppress the raw message — only the expanded
@@ -805,6 +850,19 @@ async def _handle_new_message(msg: dict):
             )
 
     raw_targets = router.get_targets(sender, text, channel)
+    auto_dispatched = False
+    if not raw_targets and _should_auto_dispatch(sender, text, msg_type, stripped, known_agents):
+        raw_targets = _select_auto_dispatch_targets(text)
+        auto_dispatched = bool(raw_targets)
+        if auto_dispatched and config.get("routing", {}).get("auto_dispatch_announce", True):
+            mentions = " ".join(f"@{target}" for target in raw_targets)
+            store.add(
+                "system",
+                f"Auto-dispatched to {mentions}",
+                msg_type="system",
+                channel=channel,
+                metadata={"auto_dispatch": True, "targets": raw_targets},
+            )
     # Resolve base family names to actual registered instances
     # e.g. 'claude' → 'claude-prime' when slot-1 was renamed
     targets = []
@@ -830,6 +888,8 @@ async def _handle_new_message(msg: dict):
     # Build a readable message string for the wake prompt
     chat_msg = f"{sender}: {text}" if text else ""
     custom_prompt = text if is_hidden_session_request else ""
+    if auto_dispatched:
+        custom_prompt = _auto_dispatch_prompt(channel)
 
     # Session turn guard: if a session is active on this channel and the sender
     # is an agent, only allow triggering the agent whose turn it is.
@@ -2082,6 +2142,15 @@ async def set_agent_role(agent_name: str, request: Request):
     _sync_profile_role(agent_name, role)
     await broadcast_status()
     return JSONResponse({"ok": True, "role": role})
+
+
+@app.get("/api/agent-profiles/{agent_name}")
+async def get_agent_profile(agent_name: str):
+    """Get one agent profile, including role specialty metadata."""
+    if not agent_profiles:
+        return JSONResponse({})
+    profile = agent_profiles.get_by_name(agent_name)
+    return JSONResponse(profile or {})
 
 
 # --- Rules API ---

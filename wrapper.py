@@ -534,6 +534,60 @@ def _fetch_role(server_port: int, agent_name: str) -> str:
         return ""
 
 
+def _fetch_profile_context(server_port: int, agent_name: str, token: str = "") -> dict:
+    """Fetch role specialty metadata for this agent profile."""
+    try:
+        import urllib.parse
+        import urllib.request
+
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        safe_name = urllib.parse.quote(agent_name, safe="")
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{server_port}/api/agent-profiles/{safe_name}",
+            headers=headers,
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read())
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _format_profile_context(profile: dict, *, role_fallback: str = "") -> str:
+    """Format profile metadata for one-line CLI injection."""
+    role = str(profile.get("role") or role_fallback).strip()
+    parts = []
+    if role:
+        parts.append(f"ROLE: {role}")
+    model = str(profile.get("model", "")).strip()
+    if model:
+        parts.append(f"MODEL: {model}")
+    specialty = str(profile.get("specialty", "")).strip()
+    if specialty:
+        parts.append(f"SPECIALTY: {specialty}")
+    responsibilities = _profile_list(profile.get("responsibilities"))
+    if responsibilities:
+        parts.append("RESPONSIBILITIES: " + "; ".join(responsibilities))
+    runtime_policy = str(profile.get("runtime_policy", "")).strip()
+    if runtime_policy:
+        parts.append(f"RUNTIME POLICY: {runtime_policy}")
+    avoid = _profile_list(profile.get("avoid"))
+    if avoid:
+        parts.append("AVOID: " + "; ".join(avoid))
+    runtime_policy = str(profile.get("runtime_policy", "")).strip()
+    if runtime_policy:
+        parts.append(f"RUNTIME POLICY: {runtime_policy}")
+    output_contract = str(profile.get("output_contract", "")).strip()
+    if output_contract:
+        parts.append(f"OUTPUT CONTRACT: {output_contract}")
+    return "\n\n".join(parts)
+
+
+def _profile_list(value) -> list[str]:
+    raw = value if isinstance(value, list) else [value]
+    return [str(item).strip() for item in raw if str(item).strip()]
+
+
 def _fetch_active_rules(server_port: int, token: str = "") -> dict | None:
     """Fetch active rules from the server."""
     try:
@@ -627,15 +681,19 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
 
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()
-                    # Append role if set — check both current name and base name
+                    _token = get_token_fn() if get_token_fn else ""
+                    # Append profile context if set — check both current name and base name.
+                    profile_context = _fetch_profile_context(server_port, current_name, _token)
+                    if not profile_context and current_name != agent_name:
+                        profile_context = _fetch_profile_context(server_port, agent_name, _token)
                     role = _fetch_role(server_port, current_name)
                     if not role and current_name != agent_name:
                         role = _fetch_role(server_port, agent_name)
-                    if role:
-                        prompt += f"\n\nROLE: {role}"
+                    formatted_profile = _format_profile_context(profile_context, role_fallback=role)
+                    if formatted_profile:
+                        prompt += f"\n\n{formatted_profile}"
 
                     # Smart rules injection: first trigger, epoch change, or periodic refresh
-                    _token = get_token_fn() if get_token_fn else ""
                     rules_data = _fetch_active_rules(server_port, _token)
                     trigger_count += 1
                     if rules_data:
