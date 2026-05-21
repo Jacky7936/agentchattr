@@ -2103,6 +2103,30 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
+async function stopAllAgents() {
+    const ok = confirm('Stop all running agents? The chat server will stay open.');
+    if (!ok) return;
+
+    const btn = document.getElementById('stop-agents-btn');
+    if (btn) btn.disabled = true;
+    try {
+        const resp = await fetch('/api/agents/stop-all', {
+            method: 'POST',
+            headers: { 'X-Session-Token': SESSION_TOKEN },
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            throw new Error(data.error || `HTTP ${resp.status}`);
+        }
+        const stopped = Array.isArray(data.deregistered) ? data.deregistered.length : 0;
+        showToast(`Stopped ${stopped} agent${stopped === 1 ? '' : 's'}.`, 'success');
+    } catch (err) {
+        showToast(`Failed to stop agents: ${err.message}`, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // --- Export / Import ---
 
 async function exportHistory() {
@@ -2221,6 +2245,11 @@ const SLASH_COMMANDS = [
     { cmd: '/poetry sonnet', desc: 'Agents write a sonnet about the codebase', broadcast: true },
     { cmd: '/summary', desc: 'Summarize recent messages — tag an agent (e.g. /summary @claude)', broadcast: false, needsMention: true },
     { cmd: '/summarise', desc: 'Summarize recent messages — tag an agent (e.g. /summarise @claude)', broadcast: false, needsMention: true, hidden: true },
+    { cmd: '/freeze', desc: 'Commander lock — only tagged agent may advance routing', broadcast: false, needsMention: true },
+    { cmd: '/handoff', desc: 'Move commander lock to tagged agent', broadcast: false, needsMention: true },
+    { cmd: '/standby', desc: 'Put tagged agent on standby', broadcast: false, needsMention: true },
+    { cmd: '/release', desc: 'Clear commander lock', broadcast: false },
+    { cmd: '/commander', desc: 'Show commander lock status', broadcast: false },
     { cmd: '/continue', desc: 'Resume after loop guard pauses', broadcast: false },
     { cmd: '/clear', desc: 'Clear messages in current channel', broadcast: false },
 ];

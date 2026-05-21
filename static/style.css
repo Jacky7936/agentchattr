@@ -6335,6 +6335,22 @@ html, body { max-width: 100%; overflow-x: clip; }
     color: var(--accent);
     border-color: transparent;
 }
+
+.topbar .settings-btn.danger-action {
+    color: var(--danger);
+}
+
+.topbar .settings-btn.danger-action:hover,
+.topbar .settings-btn.danger-action:focus-visible {
+    color: var(--danger);
+    background: var(--danger-soft);
+    border-color: color-mix(in oklab, var(--danger), transparent 55%);
+}
+
+.topbar .settings-btn.danger-action:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
 [data-theme="dark"] .topbar .settings-btn.active,
 [data-theme="dark"] .topbar #jobs-toggle.active,
 [data-theme="dark"] .topbar #rules-toggle.active,

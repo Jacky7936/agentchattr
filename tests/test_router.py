@@ -38,6 +38,56 @@ class RouterMentionTests(unittest.TestCase):
         self.assertEqual(router.parse_mentions("@telegram-bot check"), [])
         self.assertEqual(router.get_targets("ben", "@telegram-bot check"), [])
 
+    def test_commander_lock_blocks_non_active_agent_fanout(self):
+        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+
+        self.assertEqual(
+            router.get_targets("claude-reviewer", "@codex-builder ACK", channel="design"),
+            [],
+        )
+
+    def test_commander_lock_allows_dispatcher_to_wake_only_active_agent(self):
+        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+
+        self.assertEqual(
+            router.get_targets(
+                "codex-dispatcher",
+                "@codex-builder @claude-reviewer first handoff only",
+                channel="design",
+            ),
+            ["codex-builder"],
+        )
+
+    def test_commander_lock_allows_active_agent_to_wake_dispatcher(self):
+        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+
+        self.assertEqual(
+            router.get_targets("codex-builder", "@codex-dispatcher handoff ready", channel="design"),
+            ["codex-dispatcher"],
+        )
+        self.assertEqual(
+            router.get_targets("codex-builder", "@claude-reviewer please review", channel="design"),
+            [],
+        )
+
+    def test_human_explicit_mentions_override_commander_lock(self):
+        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="none")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+
+        self.assertEqual(
+            router.get_targets("Jacky", "@claude-reviewer please inspect", channel="design"),
+            ["claude-reviewer"],
+        )
+
+    def test_human_default_routing_follows_active_commander_lane(self):
+        router = Router(["codex-dispatcher", "codex-builder", "claude-reviewer"], default_mention="all")
+        router.set_commander_lock("design", active_agent="codex-builder", updated_by="codex-dispatcher")
+
+        self.assertEqual(router.get_targets("Jacky", "continue", channel="design"), ["codex-builder"])
+
 
 if __name__ == "__main__":
     unittest.main()

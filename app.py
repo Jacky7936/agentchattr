@@ -3,6 +3,8 @@
 import asyncio
 import json
 import re as _re
+import shutil
+import subprocess
 import sys
 import threading
 import uuid
@@ -693,6 +695,139 @@ def _auto_dispatch_prompt(channel: str) -> str:
     )
 
 
+_COMMANDER_COMMANDS = {"/freeze", "/handoff", "/standby", "/release", "/unfreeze", "/commander"}
+
+
+def _strip_mentions_for_command(text: str) -> str:
+    return _re.sub(r"@[\w-]+\s*", "", text or "").strip().lower()
+
+
+def _command_word(stripped: str) -> str:
+    return stripped.split()[0] if stripped else ""
+
+
+def _is_commander_command(stripped: str) -> bool:
+    return _command_word(stripped) in _COMMANDER_COMMANDS
+
+
+def _is_commander_sender(sender: str) -> bool:
+    clean = normalize_profile_id(sender or "")
+    if not clean:
+        return False
+    username = normalize_profile_id(room_settings.get("username", "user"))
+    if clean == username:
+        return True
+    if clean == "dispatcher" or clean.endswith("-dispatcher"):
+        return True
+    if agent_profiles:
+        profile = agent_profiles.get_by_name(clean)
+        role = str((profile or {}).get("role", "")).strip().lower()
+        if role == "dispatcher":
+            return True
+    return False
+
+
+def _resolve_control_targets(text: str) -> list[str]:
+    if not router:
+        return []
+    targets = []
+    for name in router.parse_mentions(text or ""):
+        if name in ("all", "both"):
+            continue
+        if registry:
+            targets.extend(registry.resolve_to_instances(name))
+        else:
+            targets.append(name)
+    return list(dict.fromkeys(targets))
+
+
+def _control_status_text(channel: str) -> str:
+    status = router.get_commander_status(channel) if router else {}
+    active = status.get("active_agent") or "none"
+    standby = ", ".join(f"@{name}" for name in status.get("standby", [])) or "none"
+    locked = "locked" if status.get("locked") else "released"
+    return f"Commander status for #{channel}: {locked}; active=@{active}; standby={standby}."
+
+
+async def _trigger_commander_target(target: str, sender: str, text: str, channel: str):
+    if not agents or not agents.is_available(target):
+        return
+    prompt = (
+        f"use mcp to read #{channel}. Commander lock is active and @{target} is "
+        "the only active worker. Respond in the channel with the requested handoff. "
+        "Do not mention or wake other agents unless the dispatcher or human explicitly hands off."
+    )
+    await agents.trigger(target, message=f"{sender}: {text}", channel=channel, prompt=prompt)
+
+
+async def _handle_commander_command(sender: str, text: str, channel: str) -> bool:
+    stripped = _strip_mentions_for_command(text)
+    cmd = _command_word(stripped)
+    if cmd not in _COMMANDER_COMMANDS:
+        return False
+
+    if not _is_commander_sender(sender):
+        store.add(
+            "system",
+            f"Commander control denied: {sender} is not a dispatcher or human operator.",
+            msg_type="system",
+            channel=channel,
+        )
+        return True
+
+    targets = _resolve_control_targets(text)
+    reason = text.strip()
+
+    if cmd in ("/freeze", "/handoff"):
+        if not targets:
+            store.add(
+                "system",
+                f"Commander control needs a target, e.g. `{cmd} @codex-builder`.",
+                msg_type="system",
+                channel=channel,
+            )
+            return True
+        target = targets[0]
+        router.set_commander_lock(channel, active_agent=target, updated_by=sender, reason=reason)
+        store.add(
+            "system",
+            f"Commander lock: only @{target} may advance agent routing in #{channel}. "
+            "Other agents are standby until `/handoff @agent` or `/release`.",
+            msg_type="system",
+            channel=channel,
+        )
+        await broadcast_status()
+        await _trigger_commander_target(target, sender, text, channel)
+        return True
+
+    if cmd == "/standby":
+        if not targets:
+            store.add(
+                "system",
+                "Commander standby needs at least one @agent target.",
+                msg_type="system",
+                channel=channel,
+            )
+            return True
+        status = router.set_standby(channel, agents=targets, updated_by=sender, reason=reason)
+        standby = ", ".join(f"@{name}" for name in status["standby"])
+        store.add("system", f"Commander standby: {standby} will not route other agents in #{channel}.", msg_type="system", channel=channel)
+        await broadcast_status()
+        return True
+
+    if cmd in ("/release", "/unfreeze"):
+        router.release_commander_lock(channel, updated_by=sender)
+        store.add("system", f"Commander lock released in #{channel}.", msg_type="system", channel=channel)
+        await broadcast_status()
+        return True
+
+    if cmd == "/commander":
+        store.add("system", _control_status_text(channel), msg_type="system", channel=channel)
+        return True
+
+    return False
+
+
 async def _handle_new_message(msg: dict):
     """Broadcast message to web clients + check for @mention triggers."""
     # For broadcast slash commands, suppress the raw message — only the expanded
@@ -712,6 +847,7 @@ async def _handle_new_message(msg: dict):
     _broadcast_cmds = ("/hatmaking", "/artchallenge", "/roastreview", "/poetry")
     cmd_word = stripped.split()[0] if stripped else ""
     is_broadcast_cmd = cmd_word in _broadcast_cmds
+    is_commander_cmd = _is_commander_command(stripped)
     known_agents = set(registry.get_all_names()) if registry else set()
     known_agents.update(config.get("agents", {}).keys())
     _session_draft_re = _re.compile(r'```session\s*\n(.*?)\n```', _re.DOTALL)
@@ -722,6 +858,7 @@ async def _handle_new_message(msg: dict):
     is_agent_continue = (stripped == "/continue" and sender in known_agents)
     suppress_broadcast = (
         is_broadcast_cmd
+        or is_commander_cmd
         or is_hidden_session_request
         or is_agent_session_draft
         or is_agent_continue
@@ -737,6 +874,9 @@ async def _handle_new_message(msg: dict):
 
     # System messages never trigger routing - prevents infinite callback loops
     if sender == "system":
+        return
+
+    if await _handle_commander_command(sender, text, channel):
         return
 
     # Check for slash commands — use stripped text (sans @mentions)
@@ -853,6 +993,12 @@ async def _handle_new_message(msg: dict):
     auto_dispatched = False
     if not raw_targets and _should_auto_dispatch(sender, text, msg_type, stripped, known_agents):
         raw_targets = _select_auto_dispatch_targets(text)
+        commander_status = router.get_commander_status(channel) if router else {}
+        if commander_status.get("locked") and commander_status.get("active_agent"):
+            raw_targets = [commander_status["active_agent"]]
+        elif commander_status.get("standby"):
+            standby = set(commander_status.get("standby", []))
+            raw_targets = [target for target in raw_targets if target not in standby]
         auto_dispatched = bool(raw_targets)
         if auto_dispatched and config.get("routing", {}).get("auto_dispatch_announce", True):
             mentions = " ".join(f"@{target}" for target in raw_targets)
@@ -940,6 +1086,10 @@ async def broadcast(msg: dict):
 async def broadcast_status():
     status = agents.get_status()
     status["paused"] = any(router.is_paused(ch) for ch in room_settings.get("channels", ["general"]))
+    status["commander"] = {
+        ch: router.get_commander_status(ch)
+        for ch in room_settings.get("channels", ["general"])
+    }
     data = json.dumps({"type": "status", "data": status})
     dead = set()
     for client in list(ws_clients):
@@ -1205,12 +1355,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 if text.startswith("/"):
                     cmd_parts = text.split()
                     cmd = cmd_parts[0].lower()
+                    if _is_commander_command(_strip_mentions_for_command(text)):
+                        await _handle_commander_command(sender, text, channel)
+                        continue
                     if cmd == "/clear":
                         store.clear(channel=channel)
                         await broadcast_clear(channel=channel)
                         continue
                     if cmd == "/continue":
-                        router.continue_routing()
+                        router.continue_routing(channel)
                         store.add("system", "Resuming agent conversation...", msg_type="system", channel=channel)
                         await broadcast_status()
                         continue
@@ -1647,10 +1800,90 @@ async def api_send(request: Request):
     return JSONResponse(msg)
 
 
+def _stop_registered_agent_processes() -> dict:
+    report = {
+        "registered": [],
+        "deregistered": [],
+        "queues_cleared": 0,
+        "tmux_sessions_killed": [],
+        "process_patterns_signaled": [],
+        "errors": [],
+    }
+
+    data_dir = Path(config.get("server", {}).get("data_dir", "./data"))
+
+    if registry:
+        names = list(registry.get_all_names())
+        report["registered"] = names
+        for name in names:
+            try:
+                if registry.deregister(name):
+                    report["deregistered"].append(name)
+            except Exception as exc:
+                report["errors"].append(f"deregister {name}: {exc}")
+
+    try:
+        for queue_file in data_dir.glob("*_queue.jsonl"):
+            queue_file.write_text("", "utf-8")
+            report["queues_cleared"] += 1
+    except Exception as exc:
+        report["errors"].append(f"clear queues: {exc}")
+
+    if sys.platform != "win32" and shutil.which("tmux"):
+        try:
+            result = subprocess.run(
+                ["tmux", "list-sessions", "-F", "#{session_name}"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                for session in result.stdout.splitlines():
+                    session = session.strip()
+                    if not session.startswith("agentchattr-"):
+                        continue
+                    subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True, check=False)
+                    report["tmux_sessions_killed"].append(session)
+        except Exception as exc:
+            report["errors"].append(f"tmux cleanup: {exc}")
+
+    if sys.platform != "win32" and shutil.which("pkill"):
+        for pattern in ("wrapper.py", "wrapper_api.py", "mcp_proxy.py"):
+            try:
+                subprocess.run(["pkill", "-f", pattern], capture_output=True, check=False)
+                report["process_patterns_signaled"].append(pattern)
+            except Exception as exc:
+                report["errors"].append(f"pkill {pattern}: {exc}")
+
+    return report
+
+
+@app.post("/api/agents/stop-all")
+async def stop_all_agents():
+    report = _stop_registered_agent_processes()
+    count = len(report.get("deregistered", []))
+    channel = _last_active_channel or "general"
+    store.add(
+        "system",
+        f"Stop all agents requested. Deregistered {count} agent(s); cleared {report.get('queues_cleared', 0)} queue file(s).",
+        msg_type="system",
+        channel=channel,
+        metadata={"stop_all_agents": report},
+    )
+    if _event_loop:
+        await broadcast_agents()
+        await broadcast_status()
+    return JSONResponse(report)
+
+
 @app.get("/api/status")
 async def get_status():
     status = agents.get_status()
     status["paused"] = any(router.is_paused(ch) for ch in room_settings.get("channels", ["general"]))
+    status["commander"] = {
+        ch: router.get_commander_status(ch)
+        for ch in room_settings.get("channels", ["general"])
+    }
     return status
 
 
