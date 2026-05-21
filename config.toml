@@ -31,13 +31,13 @@ label = "Gemini"
 
 [agents.antigravity]
 command = "agy"
-cwd = ".."
+cwd = "/Users/jackyho/GitHub/dacitech-temple-erp"
 color = "#7c3aed"
 label = "Antigravity"
 
 [agents.grok]
 command = "grok"
-cwd = ".."
+cwd = "/Users/jackyho/GitHub/dacitech-temple-erp"
 color = "#06b6d4"
 label = "Grok Build"
 
