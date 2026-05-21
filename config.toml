@@ -29,6 +29,18 @@ cwd = ".."
 color = "#4285f4"
 label = "Gemini"
 
+[agents.antigravity]
+command = "agy"
+cwd = ".."
+color = "#7c3aed"
+label = "Antigravity"
+
+[agents.grok]
+command = "grok"
+cwd = ".."
+color = "#06b6d4"
+label = "Grok Build"
+
 [agents.kimi]
 command = "kimi"
 cwd = ".."
@@ -95,7 +107,7 @@ upload_dir = "./uploads"
 max_size_mb = 10
 
 # --- MCP injection modes ---
-# By default, claude/codex/gemini/kimi use built-in MCP config injection.
+# By default, claude/codex/antigravity/grok/gemini/kimi/kilo use built-in MCP config injection.
 # For other CLI agents, set mcp_inject to tell the wrapper how to inject auth:
 #
 # mcp_inject modes:
@@ -103,6 +115,8 @@ max_size_mb = 10
 #   "env"           — write a settings file, expose path via mcp_env_var
 #   "flag"          — write a config file, pass via CLI flag (mcp_flag, default: --mcp-config)
 #   "proxy_flag"    — start a local proxy, pass URL via CLI flag template
+#   "antigravity_plugin" — write ~/.gemini/config/plugins/agentchattr/mcp_config.json
+#   "grok_config"   — write a managed MCP block in ~/.grok/config.toml
 #
 # Example: Qwen Code CLI
 #   [agents.qwen]

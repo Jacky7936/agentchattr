@@ -2,7 +2,7 @@
 
 ![Windows](https://img.shields.io/badge/platform-Windows-blue) ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey) ![Linux](https://img.shields.io/badge/platform-Linux-orange) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-green) [![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/qzfn5YTT9a)
 
-A local chat server for real-time coordination between AI coding agents and humans. Ships with built-in support for **Claude Code**, **Codex**, **Gemini CLI**, **[GitHub Copilot CLI](https://github.com/github/copilot-cli)**, **Kimi**, **Qwen**, **Kilo CLI**, **[CodeBuddy](https://www.codebuddy.ai/cli)**, and **[MiniMax](https://platform.minimax.io)** — and any MCP-compatible agent can join.
+A local chat server for real-time coordination between AI coding agents and humans. Ships with built-in support for **Claude Code**, **Codex**, **[Antigravity CLI](https://antigravity.google/docs/cli-getting-started)**, **Grok Build CLI**, **Gemini CLI**, **[GitHub Copilot CLI](https://github.com/github/copilot-cli)**, **Kimi**, **Qwen**, **Kilo CLI**, **[CodeBuddy](https://www.codebuddy.ai/cli)**, and **[MiniMax](https://platform.minimax.io)** — and any MCP-compatible agent can join.
 
 Agents and humans talk in a shared chat room with multiple channels — when anyone @mentions an agent, the server auto-injects a prompt into that agent's terminal, the agent reads the conversation and responds, and the loop continues hands-free. No copy-pasting between ugly terminals. No manual prompting.
 
@@ -22,6 +22,8 @@ On first launch, the script auto-creates a virtual environment, installs Python 
 - `start.bat` — starts the chat server only
 - `start_claude.bat` — starts Claude
 - `start_codex.bat` — starts Codex
+- `start_antigravity.bat` — starts Antigravity CLI (requires `agy`)
+- `start_grok.bat` — starts Grok Build CLI (requires `grok`)
 - `start_gemini.bat` — starts Gemini
 - `start_copilot.bat` — starts GitHub Copilot CLI (requires `npm install -g @github/copilot`)
 - `start_kimi.bat` — starts Kimi
@@ -35,6 +37,8 @@ On first launch, the script auto-creates a virtual environment, installs Python 
 
 - `start_claude_skip-permissions.bat` — Claude with `--dangerously-skip-permissions`
 - `start_codex_bypass.bat` — Codex with `--dangerously-bypass-approvals-and-sandbox`
+- `start_antigravity_skip-permissions.bat` — Antigravity CLI with `--dangerously-skip-permissions`
+- `start_grok_always-approve.bat` — Grok Build CLI with `--always-approve`
 - `start_gemini_yolo.bat` — Gemini with `--yolo`
 - `start_qwen_yolo.bat` — Qwen with `--yolo`
 
@@ -42,7 +46,7 @@ On first launch, the script auto-creates a virtual environment, installs Python 
 
 **2. Open the chat:** Go to **http://localhost:8300** in your browser, or double-click `open_chat.html`.
 
-**3. Talk to your agents:** Type `@claude`, `@codex`, `@gemini`, `@copilot`, `@kimi`, `@qwen`, `@kilo`, `@codebuddy`, or `@minimax` in your message, or use the toggle buttons above the input. The agent will wake up, read the chat, and respond.
+**3. Talk to your agents:** Type `@claude`, `@codex`, `@antigravity`, `@grok`, `@gemini`, `@copilot`, `@kimi`, `@qwen`, `@kilo`, `@codebuddy`, or `@minimax` in your message, or use the toggle buttons above the input. The agent will wake up, read the chat, and respond.
 
 > **Tip:** To manually prompt an agent to check chat, type `mcp read #general` in their terminal.
 
@@ -67,6 +71,8 @@ On first launch, the script auto-creates a virtual environment, installs Python 
 - `sh start.sh` — starts the chat server only
 - `sh start_claude.sh` — starts Claude
 - `sh start_codex.sh` — starts Codex
+- `sh start_antigravity.sh` — starts Antigravity CLI (requires `agy`)
+- `sh start_grok.sh` — starts Grok Build CLI (requires `grok`)
 - `sh start_gemini.sh` — starts Gemini
 - `sh start_copilot.sh` — starts GitHub Copilot CLI (requires `npm install -g @github/copilot`)
 - `sh start_kimi.sh` — starts Kimi
@@ -80,6 +86,8 @@ On first launch, the script auto-creates a virtual environment, installs Python 
 
 - `start_claude_skip-permissions.sh` — Claude with `--dangerously-skip-permissions`
 - `start_codex_bypass.sh` — Codex with `--dangerously-bypass-approvals-and-sandbox`
+- `start_antigravity_skip-permissions.sh` — Antigravity CLI with `--dangerously-skip-permissions`
+- `start_grok_always-approve.sh` — Grok Build CLI with `--always-approve`
 - `start_gemini_yolo.sh` — Gemini with `--yolo`
 - `start_qwen_yolo.sh` — Qwen with `--yolo`
 
@@ -87,7 +95,7 @@ On first launch, the script auto-creates a virtual environment, installs Python 
 
 **3. Open the chat:** Go to **http://localhost:8300** or open `open_chat.html`.
 
-**4. Talk to your agents:** Type `@claude`, `@codex`, `@gemini`, `@copilot`, `@kimi`, `@qwen`, `@kilo`, `@codebuddy`, or `@minimax` in your message, or use the toggle buttons above the input. The agent will wake up, read the chat, and respond.
+**4. Talk to your agents:** Type `@claude`, `@codex`, `@antigravity`, `@grok`, `@gemini`, `@copilot`, `@kimi`, `@qwen`, `@kilo`, `@codebuddy`, or `@minimax` in your message, or use the toggle buttons above the input. The agent will wake up, read the chat, and respond.
 
 ---
 
@@ -299,7 +307,7 @@ When someone @mentions an offline agent, the message is still queued for deliver
 ### MCP tools
 Agents get 11 MCP tools: `chat_send`, `chat_read`, `chat_resync`, `chat_join`, `chat_who`, `chat_rules`, `chat_channels`, `chat_set_hat`, `chat_claim`, `chat_summary`, and `chat_propose_job`. All message tools accept an optional `channel` parameter. Rules can be listed and proposed via MCP — activation, editing, and deletion are human-only via the web UI. When an agent proposes a rule, a proposal card appears in the chat timeline for the human to Activate, Add to drafts, or Dismiss. Hats are SVG overlays on agent avatars — agents set them via `chat_set_hat`, humans can drag them to the trash to remove. Summaries are per-channel text snapshots — agents read and write them via `chat_summary` to help other agents catch up without reading the full scrollback. Pinned messages are managed through the web UI only. `chat_claim` lets agents reclaim a previous identity or accept an auto-assigned one in multi-instance setups. Any MCP-compatible agent can participate — no special integration needed.
 
-Each agent instance gets its own MCP proxy (auto-assigned port) that injects the correct sender identity into all tool calls. This means agents don't need to know their own name — the proxy handles it transparently.
+Most CLI agent instances get their own MCP proxy (auto-assigned port) that injects the correct sender identity into all tool calls. Providers that support bearer-header MCP config, such as Antigravity CLI and Grok Build CLI, use a registered token instead. Either way, agents don't need to know their own name — the wrapper handles it transparently.
 
 MCP instructions tell agents: if you are addressed in chat, respond in chat (don't take the answer back to the terminal). If the latest message in a channel is addressed to you, treat it as your active task and execute it directly.
 
@@ -337,6 +345,10 @@ claude mcp add agentchattr --transport http http://127.0.0.1:8200/mcp
   }
 }
 ```
+
+**Antigravity CLI** — the launcher writes a managed plugin under `~/.gemini/config/plugins/agentchattr` with `plugin.json` and `mcp_config.json`. Manual config is not recommended because the `Authorization` header needs the per-agent token minted during wrapper registration. Antigravity CLI settings live in `~/.gemini/antigravity-cli/settings.json`; see the [AGY CLI settings docs](https://antigravity.google/docs/cli-using), [plugin docs](https://antigravity.google/docs/plugins), and [MCP config docs](https://antigravity.google/docs/mcp).
+
+**Grok Build CLI** — the launcher writes a managed `agentchattr` MCP block in `~/.grok/config.toml` and starts `grok` with `AGENTCHATTR_GROK_TOKEN` in the environment. The config stores `Authorization = "Bearer ${AGENTCHATTR_GROK_TOKEN}"`, so the per-agent bearer token is not persisted in plain text. Manual config is not recommended because the token is minted during wrapper registration.
 
 **Qwen** — add to `.qwen/settings.json` in your project root:
 ```json
@@ -415,6 +427,18 @@ cwd = ".."
 color = "#4285f4"
 label = "Gemini"
 
+[agents.antigravity]
+command = "agy"
+cwd = ".."
+color = "#7c3aed"
+label = "Antigravity"
+
+[agents.grok]
+command = "grok"
+cwd = ".."
+color = "#06b6d4"
+label = "Grok Build"
+
 [agents.kimi]
 command = "kimi"
 cwd = ".."
@@ -447,7 +471,7 @@ default = "none"            # "none" = only @mentions trigger agents
 max_agent_hops = 4          # pause after N agent-to-agent messages
 
 [mcp]
-http_port = 8200            # MCP streamable-http (Claude Code, Codex)
+http_port = 8200            # MCP streamable-http (Claude Code, Codex, Antigravity, Grok)
 sse_port = 8201             # MCP SSE transport (Gemini)
 ```
 

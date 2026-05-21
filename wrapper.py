@@ -3,6 +3,8 @@
 Usage:
     python wrapper.py claude
     python wrapper.py codex
+    python wrapper.py antigravity
+    python wrapper.py grok
     python wrapper.py gemini
     python wrapper.py kimi
     python wrapper.py qwen
@@ -29,6 +31,9 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 
 SERVER_NAME = "agentchattr"
+GROK_TOKEN_ENV_VAR = "AGENTCHATTR_GROK_TOKEN"
+_GROK_MANAGED_BEGIN = "# BEGIN agentchattr managed MCP server"
+_GROK_MANAGED_END = "# END agentchattr managed MCP server"
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +84,79 @@ def _write_json_mcp_settings(config_file: Path, url: str, transport: str = "http
     existing["security"] = security
 
     config_file.write_text(json.dumps(existing, indent=2) + "\n", "utf-8")
+    return config_file
+
+
+def _write_antigravity_plugin_mcp_config(url: str, *, token: str = "") -> Path:
+    """Write Antigravity CLI plugin MCP config.
+
+    AGY CLI currently exposes plugin-based MCP configuration instead of a
+    per-launch MCP config flag. Keep this managed plugin deliberately tiny so
+    it only contributes the agentchattr MCP server.
+    """
+    plugin_dir = Path.home() / ".gemini" / "config" / "plugins" / SERVER_NAME
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "plugin.json").write_text(
+        json.dumps({"name": SERVER_NAME}, indent=2) + "\n",
+        "utf-8",
+    )
+
+    entry: dict = {"serverUrl": url}
+    if token:
+        entry["headers"] = {"Authorization": f"Bearer {token}"}
+    payload = {"mcpServers": {SERVER_NAME: entry}}
+    config_file = plugin_dir / "mcp_config.json"
+    config_file.write_text(json.dumps(payload, indent=2) + "\n", "utf-8")
+    return config_file
+
+
+def _toml_basic_string(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _write_grok_mcp_config(url: str) -> Path:
+    """Write/update Grok Build's native MCP config block.
+
+    Grok expands env vars in string fields, so keep the runtime bearer token
+    out of ~/.grok/config.toml and pass it through AGENTCHATTR_GROK_TOKEN.
+    """
+    config_file = Path.home() / ".grok" / "config.toml"
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+
+    existing = ""
+    if config_file.exists():
+        try:
+            existing = config_file.read_text("utf-8")
+        except Exception:
+            existing = ""
+
+    block = "\n".join(
+        [
+            _GROK_MANAGED_BEGIN,
+            f"[mcp_servers.{SERVER_NAME}]",
+            f"url = {_toml_basic_string(url)}",
+            "",
+            f"[mcp_servers.{SERVER_NAME}.headers]",
+            f"Authorization = {_toml_basic_string(f'Bearer ${{{GROK_TOKEN_ENV_VAR}}}')}",
+            _GROK_MANAGED_END,
+        ]
+    )
+
+    start = existing.find(_GROK_MANAGED_BEGIN)
+    if start >= 0:
+        end = existing.find(_GROK_MANAGED_END, start)
+        if end >= 0:
+            end += len(_GROK_MANAGED_END)
+            existing = existing[:start].rstrip() + "\n\n" + existing[end:].lstrip("\n")
+        else:
+            existing = existing[:start].rstrip()
+
+    existing = existing.rstrip()
+    if existing:
+        new_text = existing + "\n\n" + block + "\n"
+    else:
+        new_text = block + "\n"
+    config_file.write_text(new_text, "utf-8")
     return config_file
 
 
@@ -158,9 +236,25 @@ _BUILTIN_DEFAULTS: dict[str, dict] = {
         "mcp_env_var": "KILO_CONFIG_CONTENT",
         "mcp_transport": "http",
     },
+    "antigravity": {
+        "mcp_inject": "antigravity_plugin",
+        "mcp_transport": "http",
+    },
+    "grok": {
+        "mcp_inject": "grok_config",
+        "mcp_transport": "http",
+    },
 }
 
-_VALID_INJECT_MODES = {"settings_file", "env", "flag", "proxy_flag", "env_content"}
+_VALID_INJECT_MODES = {
+    "settings_file",
+    "env",
+    "flag",
+    "proxy_flag",
+    "env_content",
+    "antigravity_plugin",
+    "grok_config",
+}
 
 
 def _resolve_mcp_inject(agent: str, agent_cfg: dict) -> dict:
@@ -296,6 +390,16 @@ def _apply_mcp_inject(
                                   '-c mcp_servers.{server}.url="{url}"')
         expanded = template.format(server=SERVER_NAME, url=proxy_url or "")
         launch_args = expanded.split()
+
+    elif mode == "antigravity_plugin":
+        settings_path = _write_antigravity_plugin_mcp_config(
+            server_url,
+            token=token,
+        )
+
+    elif mode == "grok_config":
+        settings_path = _write_grok_mcp_config(server_url)
+        inject_env[GROK_TOKEN_ENV_VAR] = token
 
     return launch_args, inject_env, settings_path
 
@@ -620,7 +724,7 @@ def main():
     proxy_url = None
 
     # Resolve MCP injection mode to determine if a proxy is needed.
-    # Direct-connect modes (settings_file, env, flag) don't need a proxy.
+    # Direct-connect modes (settings_file, env, flag, grok_config, etc.) don't need a proxy.
     # proxy_flag mode needs a proxy. No mcp_inject = proxy fallback.
     inject_cfg = _resolve_mcp_inject(agent, agent_cfg)
     inject_mode = inject_cfg.get("mcp_inject", "")
