@@ -83,6 +83,44 @@ class CommanderLedgerTests(unittest.TestCase):
         self.assertEqual(restored.active_lanes(), [])
         self.assertEqual(restored.get("general")["status"], "released")
 
+    def test_backlog_persists_and_advances_after_approval(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "commander_ledger.json"
+            ledger = CommanderLedger(path)
+            ledger.start_lane(
+                "design",
+                commander="codex-orchestrator",
+                active_agents=["codex-module-prototype-designer", "codex-reviewer"],
+                task="Refresh mockups",
+                reason="auto-dispatch",
+                now=1000,
+            )
+            ledger.set_backlog(
+                "design",
+                items=["mockups/dashboard.html", "mockups/index.html", "mockups/flow-overview.html"],
+                created_by="codex-orchestrator",
+                worker="codex-module-prototype-designer",
+                reviewer="codex-reviewer",
+                now=1010,
+            )
+            ledger.mark_backlog_item(
+                "design",
+                item="mockups/dashboard.html",
+                state="approved",
+                updated_by="codex-reviewer",
+                note="handoff ready",
+                now=1020,
+            )
+
+            restored = CommanderLedger(path)
+            lane = restored.get("design")
+            next_item = restored.next_backlog_item("design")
+
+        self.assertEqual(lane["backlog"]["items"][0]["status"], "approved")
+        self.assertEqual(lane["backlog"]["current_index"], 1)
+        self.assertEqual(next_item["text"], "mockups/index.html")
+        self.assertEqual(lane["events"][-1]["type"], "backlog-item")
+
 
 if __name__ == "__main__":
     unittest.main()

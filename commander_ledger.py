@@ -175,6 +175,135 @@ class CommanderLedger:
             self._save_locked()
             return dict(lane)
 
+    def set_backlog(
+        self,
+        channel: str,
+        *,
+        items: list[str],
+        created_by: str,
+        worker: str = "",
+        reviewer: str = "",
+        note: str = "",
+        auto_advance: bool = True,
+        now: float | None = None,
+    ) -> dict | None:
+        ts = time.time() if now is None else float(now)
+        clean_items = []
+        for item in items:
+            text = str(item or "").strip()
+            if text and text not in clean_items:
+                clean_items.append(text[:300])
+        if not clean_items:
+            return None
+        with self._lock:
+            lane = self._lanes.get(channel)
+            if not lane or lane.get("status") != "active":
+                return None
+            lane["backlog"] = {
+                "items": [
+                    {
+                        "text": item,
+                        "status": "pending",
+                        "updated_by": "",
+                        "updated_at": 0.0,
+                        "note": "",
+                    }
+                    for item in clean_items
+                ],
+                "current_index": 0,
+                "worker": _clean_agent(worker),
+                "reviewer": _clean_agent(reviewer),
+                "auto_advance": bool(auto_advance),
+                "created_by": _clean_agent(created_by),
+                "note": str(note or "").strip()[:500],
+                "updated_at": ts,
+            }
+            lane["updated_at"] = ts
+            self._append_event_locked(
+                lane,
+                "backlog",
+                {
+                    "created_by": _clean_agent(created_by),
+                    "items": clean_items,
+                    "worker": _clean_agent(worker),
+                    "reviewer": _clean_agent(reviewer),
+                    "auto_advance": bool(auto_advance),
+                },
+                ts,
+            )
+            self._save_locked()
+            return dict(lane)
+
+    def mark_backlog_item(
+        self,
+        channel: str,
+        *,
+        item: str = "",
+        state: str,
+        updated_by: str,
+        note: str = "",
+        now: float | None = None,
+    ) -> dict | None:
+        ts = time.time() if now is None else float(now)
+        clean_state = _clean_backlog_state(state)
+        clean_item = str(item or "").strip()
+        with self._lock:
+            lane = self._lanes.get(channel)
+            if not lane or lane.get("status") != "active":
+                return None
+            backlog = dict(lane.get("backlog") or {})
+            items = [dict(entry) for entry in backlog.get("items") or [] if isinstance(entry, dict)]
+            if not items:
+                return None
+            index = _find_backlog_index(items, clean_item, int(backlog.get("current_index", 0) or 0))
+            if index < 0:
+                return None
+            items[index]["status"] = clean_state
+            items[index]["updated_by"] = _clean_agent(updated_by)
+            items[index]["updated_at"] = ts
+            items[index]["note"] = str(note or "").strip()[:500]
+            backlog["items"] = items
+            backlog["updated_at"] = ts
+            backlog["current_index"] = _next_pending_index(items) if clean_state == "approved" else index
+            lane["backlog"] = backlog
+            lane["last_activity_at"] = ts
+            lane["updated_at"] = ts
+            self._append_event_locked(
+                lane,
+                "backlog-item",
+                {
+                    "item": items[index]["text"],
+                    "state": clean_state,
+                    "updated_by": _clean_agent(updated_by),
+                    "note": items[index]["note"],
+                    "next_item": self._next_item_from_backlog_locked(backlog).get("text", ""),
+                },
+                ts,
+            )
+            self._save_locked()
+            return dict(lane)
+
+    def next_backlog_item(self, channel: str) -> dict | None:
+        with self._lock:
+            lane = self._lanes.get(channel)
+            if not lane or lane.get("status") != "active":
+                return None
+            item = self._next_item_from_backlog_locked(lane.get("backlog") or {})
+            return dict(item) if item else None
+
+    def _next_item_from_backlog_locked(self, backlog: dict) -> dict:
+        items = [entry for entry in backlog.get("items") or [] if isinstance(entry, dict)]
+        if not items:
+            return {}
+        current_index = int(backlog.get("current_index", 0) or 0)
+        for index in range(max(0, current_index), len(items)):
+            if items[index].get("status") in ("pending", "needs_fix"):
+                return items[index]
+        for entry in items:
+            if entry.get("status") in ("pending", "needs_fix"):
+                return entry
+        return {}
+
     def _append_event_locked(self, lane: dict, event_type: str, data: dict, ts: float) -> None:
         events = list(lane.get("events") or [])
         events.append({"type": event_type, "time": ts, **data})
@@ -199,8 +328,57 @@ def _clean_progress_state(state: str) -> str:
     return clean[:40] if clean else "working"
 
 
+def _clean_backlog_state(state: str) -> str:
+    clean = str(state or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "handoff_ready": "approved",
+        "放行": "approved",
+        "通過": "approved",
+        "ready": "approved",
+        "pass": "approved",
+        "passed": "approved",
+        "approved": "approved",
+        "needs_fix": "needs_fix",
+        "needs_fixes": "needs_fix",
+        "需修": "needs_fix",
+        "需要修正": "needs_fix",
+        "待修": "needs_fix",
+        "fix": "needs_fix",
+        "卡住": "blocked",
+        "blocked": "blocked",
+        "完成待審": "ready_for_review",
+        "待審": "ready_for_review",
+        "done": "ready_for_review",
+        "ready_for_review": "ready_for_review",
+        "review": "ready_for_review",
+        "running": "running",
+        "working": "running",
+        "started": "running",
+    }
+    return aliases.get(clean, clean[:40] if clean else "running")
+
+
 def _clean_eta_seconds(value: int) -> int:
     try:
         return max(0, int(value))
     except (TypeError, ValueError):
         return 0
+
+
+def _find_backlog_index(items: list[dict], item: str, current_index: int) -> int:
+    clean_item = item.strip()
+    if clean_item:
+        for index, entry in enumerate(items):
+            if str(entry.get("text") or "").strip() == clean_item:
+                return index
+        return -1
+    if 0 <= current_index < len(items):
+        return current_index
+    return _next_pending_index(items)
+
+
+def _next_pending_index(items: list[dict]) -> int:
+    for index, entry in enumerate(items):
+        if entry.get("status") in ("pending", "needs_fix"):
+            return index
+    return len(items)

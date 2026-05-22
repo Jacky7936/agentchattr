@@ -848,8 +848,10 @@ def _auto_dispatch_prompt(
             f"the active worker lane: {worker_text}. Track progress, split work, ask for concise "
             "status updates, and consolidate the result for the human. There is no fixed worker cap; "
             "when many agents are active, assign explicit slices and expected outputs. You may parallel-dispatch "
-            "active workers and let active workers coordinate with each other inside the lane, "
-            "but prevent loops: use /handoff @agent, /freeze @agent @agent, /standby @agent, "
+            "active workers and let active workers coordinate with each other inside the lane. "
+            "For repeatable multi-item work, create a structured lane backlog with chat_set_lane_backlog; "
+            "after each approved item, the server will auto-advance you to assign the next pending item. "
+            "Prevent loops: use /handoff @agent, /freeze @agent @agent, /standby @agent, "
             "/release, and mention only intended active workers. When the work is complete, "
             "summarize once for the human, release or narrow the lane, and stop."
             + near_text
@@ -861,8 +863,9 @@ def _auto_dispatch_prompt(
             f"@{commander}. Work only on your role's slice, report progress and blockers back "
             f"to @{commander}. For long work or test/build runs, call chat_report_progress with "
             "state, eta_seconds, and a short note. Coordinate only with active lane peers when it is necessary: "
-            f"{peer_text}. Do not mention or wake agents outside the active lane. When your slice "
-            "is done, report done/blockers once and stop."
+            f"{peer_text}. For structured backlog work, call chat_update_lane_item with state='running' "
+            "when you start and state='ready_for_review' when your item is complete. Do not mention or wake "
+            "agents outside the active lane. When your slice is done, report done/blockers once and stop."
         )
     return (
         f"use mcp to read #{channel} - you were auto-dispatched because your "
@@ -950,7 +953,8 @@ async def _trigger_commander_targets(targets: list[str], sender: str, text: str,
             f"use mcp to read #{channel}. Commander lock is active and the active worker lane is "
             f"{active_text}. @{target}, respond with your assigned handoff/status. Do not mention "
             "or wake agents outside the active lane unless the orchestrator or human explicitly "
-            "hands off. Coordinate with active lane peers only when useful, then report done or "
+            "hands off. If this is a structured backlog lane, update your item state with "
+            "chat_update_lane_item instead of waiting for a human checkpoint. Coordinate with active lane peers only when useful, then report done or "
             "blocked once and stop."
         )
         await agents.trigger(target, message=f"{sender}: {text}", channel=channel, prompt=prompt)

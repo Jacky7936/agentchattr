@@ -133,6 +133,12 @@ _MCP_INSTRUCTIONS = (
     "eta_seconds=300, note='what is happening', channel='the-channel'). "
     "Use state='blocked' with a clear note when you need a commander decision. This prevents the watchdog from "
     "mistaking quiet long-running work for no progress.\n\n"
+    "CRITICAL — Batch Lane Backlogs:\n"
+    "For repeatable multi-item work such as many files, pages, screens, or modules, the orchestrator MUST call "
+    "chat_set_lane_backlog with the ordered item list, worker, and reviewer. Workers MUST call "
+    "chat_update_lane_item(state='ready_for_review') when one item is complete. Reviewers MUST call "
+    "chat_update_lane_item(state='approved') or state='needs_fix'. The server then auto-triggers the reviewer, "
+    "worker, or commander for the next item, so the lane does not wait for a human between approved items.\n\n"
     "CRITICAL — Proposing Jobs:\n"
     "Agents must ONLY propose jobs using chat_propose_job when explicitly asked by the user, OR when the request is a clearly 'scoped task'. "
     "A task is scoped if it has: 1) Concrete outcome, 2) Specific boundary, 3) Clear done criteria, 4) Explicit owner/intention, and 5) Appropriate size. "
@@ -468,6 +474,257 @@ def chat_report_progress(
         },
         ensure_ascii=False,
     )
+
+
+def chat_set_lane_backlog(
+    sender: str,
+    items: str,
+    worker: str = "",
+    reviewer: str = "",
+    note: str = "",
+    channel: str = "",
+    ctx: Context | None = None,
+) -> str:
+    """Create an ordered backlog for a commander lane.
+
+    `items` can be a JSON array, newline list, or comma-separated list.
+    Use this for repeatable multi-item lanes so approval can auto-nudge
+    the commander with the next item.
+    """
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=True)
+    if err:
+        return err
+    if not commander_ledger:
+        return "Error: commander ledger not available."
+    channel = _resolve_lane_channel(sender, channel)
+    parsed_items = _parse_backlog_items(items)
+    if not parsed_items:
+        return "Error: items must include at least one backlog item."
+
+    lane = commander_ledger.get(channel)
+    if not lane or lane.get("status") != "active":
+        return f"Error: no active commander lane in #{channel}."
+    commander = str(lane.get("commander") or "")
+    if commander and sender != commander:
+        return f"Error: only lane commander @{commander} can set the backlog for #{channel}."
+
+    updated = commander_ledger.set_backlog(
+        channel,
+        items=parsed_items,
+        created_by=sender,
+        worker=worker,
+        reviewer=reviewer,
+        note=note,
+    )
+    if not updated:
+        return "Error: failed to set lane backlog."
+    next_item = commander_ledger.next_backlog_item(channel) or {}
+    if store:
+        store.add(
+            "system",
+            f"Lane backlog set in #{channel}: {len(parsed_items)} items; next={next_item.get('text', 'none')}.",
+            msg_type="system",
+            channel=channel,
+        )
+    _touch_presence(sender)
+    return json.dumps(
+        {
+            "ok": True,
+            "channel": channel,
+            "count": len(parsed_items),
+            "next_item": next_item.get("text", ""),
+            "worker": worker,
+            "reviewer": reviewer,
+        },
+        ensure_ascii=False,
+    )
+
+
+def chat_update_lane_item(
+    sender: str,
+    state: str,
+    item: str = "",
+    note: str = "",
+    channel: str = "",
+    ctx: Context | None = None,
+) -> str:
+    """Update one commander-lane backlog item and trigger the next checkpoint."""
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=True)
+    if err:
+        return err
+    if not commander_ledger:
+        return "Error: commander ledger not available."
+    channel = _resolve_lane_channel(sender, channel)
+
+    before = commander_ledger.get(channel) or {}
+    previous_item = _current_backlog_item(before, item)
+    updated = commander_ledger.mark_backlog_item(
+        channel,
+        item=item,
+        state=state,
+        updated_by=sender,
+        note=note,
+    )
+    if not updated:
+        return f"Error: backlog item update ignored; no matching active backlog item in #{channel}."
+
+    current = _current_backlog_item(updated, item or str(previous_item.get("text") or ""))
+    next_item = commander_ledger.next_backlog_item(channel) or {}
+    normalized_state = str((current or {}).get("status") or "").strip()
+    _maybe_trigger_lane_backlog_transition(
+        channel,
+        lane=updated,
+        item=current or {},
+        previous_lane=before,
+        next_item=next_item,
+        state=normalized_state,
+        note=note,
+    )
+    _touch_presence(sender)
+    return json.dumps(
+        {
+            "ok": True,
+            "channel": channel,
+            "item": (current or {}).get("text", ""),
+            "state": normalized_state,
+            "next_item": next_item.get("text", ""),
+            "backlog_remaining": _backlog_remaining_count(updated.get("backlog") or {}),
+        },
+        ensure_ascii=False,
+    )
+
+
+def _resolve_lane_channel(sender: str, channel: str) -> str:
+    if sender and not channel:
+        with _last_read_lock:
+            fallback_channel = _last_read_channel.get(sender, "")
+            fallback_job = _last_read_job_id.get(sender, 0)
+        if fallback_channel:
+            channel = fallback_channel
+        elif fallback_job and jobs:
+            job = jobs.get(fallback_job)
+            if job:
+                channel = job.get("channel", "")
+    return (channel or "general").strip()
+
+
+def _parse_backlog_items(items: str) -> list[str]:
+    if isinstance(items, list):
+        raw_items = items
+    else:
+        text = str(items or "").strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            parsed = None
+        if isinstance(parsed, list):
+            raw_items = parsed
+        elif "\n" in text:
+            raw_items = text.splitlines()
+        else:
+            raw_items = text.split(",")
+    out = []
+    for item in raw_items:
+        clean = str(item or "").strip()
+        if clean and clean not in out:
+            out.append(clean)
+    return out
+
+
+def _current_backlog_item(lane: dict, item: str = "") -> dict:
+    backlog = lane.get("backlog") or {}
+    items = [entry for entry in backlog.get("items") or [] if isinstance(entry, dict)]
+    clean_item = str(item or "").strip()
+    if clean_item:
+        for entry in items:
+            if str(entry.get("text") or "").strip() == clean_item:
+                return entry
+    index = int(backlog.get("current_index", 0) or 0)
+    if 0 <= index < len(items):
+        return items[index]
+    if items:
+        return items[-1]
+    return {}
+
+
+def _backlog_remaining_count(backlog: dict) -> int:
+    return sum(
+        1
+        for item in backlog.get("items") or []
+        if isinstance(item, dict) and item.get("status") in ("pending", "needs_fix")
+    )
+
+
+def _maybe_trigger_lane_backlog_transition(
+    channel: str,
+    *,
+    lane: dict,
+    item: dict,
+    previous_lane: dict,
+    next_item: dict,
+    state: str,
+    note: str = "",
+) -> None:
+    backlog = lane.get("backlog") or {}
+    item_text = str(item.get("text") or "").strip()
+    worker = str(backlog.get("worker") or "").strip()
+    reviewer = str(backlog.get("reviewer") or "").strip()
+    commander = str(lane.get("commander") or "").strip()
+    if state == "ready_for_review" and reviewer:
+        _trigger_lane_agent(
+            reviewer,
+            channel,
+            notice=f"Lane checkpoint ready in #{channel}: {item_text}",
+            prompt=(
+                f"use mcp to read #{channel}. Backlog item `{item_text}` is ready for review. "
+                "Review only this item and touched shared files. When done, call "
+                "chat_update_lane_item(state='approved') if it can advance, or "
+                "chat_update_lane_item(state='needs_fix') with exact blockers."
+            ),
+        )
+    elif state == "needs_fix" and worker:
+        _trigger_lane_agent(
+            worker,
+            channel,
+            notice=f"Lane checkpoint needs fixes in #{channel}: {item_text}",
+            prompt=(
+                f"use mcp to read #{channel}. Backlog item `{item_text}` needs fixes. "
+                "Fix only this item and the explicitly touched shared files, then call "
+                "chat_update_lane_item(state='ready_for_review') with verification evidence."
+            ),
+        )
+    elif state == "approved" and commander:
+        if backlog.get("auto_advance", True) and next_item:
+            _trigger_lane_agent(
+                commander,
+                channel,
+                notice=f"Lane auto-advance in #{channel}: next item is {next_item.get('text')}",
+                prompt=(
+                    f"use mcp to read #{channel}. auto-advance: `{item_text}` was approved. "
+                    f"The next pending backlog item is `{next_item.get('text')}`. "
+                    "Immediately assign the next single-item slice to the active worker; do not wait for the human. "
+                    "Keep the reviewer checkpoint after completion."
+                ),
+            )
+        elif not next_item:
+            _trigger_lane_agent(
+                commander,
+                channel,
+                notice=f"Lane backlog complete in #{channel}: {item_text} was approved.",
+                prompt=(
+                    f"use mcp to read #{channel}. The lane backlog appears complete after `{item_text}`. "
+                    "Summarize completion, identify residual risks, and decide whether to /release."
+                ),
+            )
+
+
+def _trigger_lane_agent(agent_name: str, channel: str, *, notice: str, prompt: str) -> None:
+    if store:
+        store.add("system", notice, msg_type="system", channel=channel)
+    if agents and agents.is_available(agent_name):
+        agents.trigger_sync(agent_name, message=notice, channel=channel, prompt=prompt)
 
 
 def _resolve_attachments(attachments: list[dict]) -> list[dict]:
@@ -1026,7 +1283,7 @@ def chat_summary(
 _ALL_TOOLS = [
     chat_send, chat_read, chat_resync, chat_join, chat_who, chat_rules, chat_decision,
     chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job,
-    chat_report_progress,
+    chat_report_progress, chat_set_lane_backlog, chat_update_lane_item,
 ]
 
 

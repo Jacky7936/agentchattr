@@ -36,6 +36,18 @@ class FakeAgents:
         )
 
 
+class FakeSyncAgents(FakeAgents):
+    def trigger_sync(self, agent_name, message="", channel="general", **kwargs):
+        self.triggers.append(
+            {
+                "agent_name": agent_name,
+                "message": message,
+                "channel": channel,
+                "prompt": kwargs.get("prompt", ""),
+            }
+        )
+
+
 class FakeProfiles:
     def __init__(self, profiles):
         self.profiles = profiles
@@ -136,9 +148,11 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("@codex-architect", commander_prompt)
         self.assertIn("/release", commander_prompt)
         self.assertIn("stop", commander_prompt)
+        self.assertIn("chat_set_lane_backlog", commander_prompt)
         self.assertIn("@codex-qa", worker_prompt)
         self.assertIn("outside the active lane", worker_prompt)
         self.assertIn("report done/blockers once and stop", worker_prompt)
+        self.assertIn("chat_update_lane_item", worker_prompt)
 
     async def test_explicit_all_routes_through_orchestrator_lane(self):
         profiles = {
@@ -440,6 +454,50 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"ok": true', result)
         self.assertEqual(router.get_commander_status("general")["worker_progress"]["codex-builder"]["state"], "running")
         self.assertEqual(restored.get("general")["progress"]["codex-builder"]["note"], "unit tests running")
+
+    async def test_lane_item_approval_triggers_commander_for_next_backlog_item(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "design",
+                commander="codex-orchestrator",
+                active_agents=["codex-module-prototype-designer", "codex-reviewer"],
+                task="Refresh mockups",
+                reason="auto-dispatch",
+                now=1000,
+            )
+            ledger.set_backlog(
+                "design",
+                items=["mockups/dashboard.html", "mockups/index.html"],
+                created_by="codex-orchestrator",
+                worker="codex-module-prototype-designer",
+                reviewer="codex-reviewer",
+                now=1010,
+            )
+            agents = FakeSyncAgents(["codex-orchestrator", "codex-module-prototype-designer", "codex-reviewer"])
+
+            with (
+                patch.object(mcp_bridge, "commander_ledger", ledger),
+                patch.object(mcp_bridge, "agents", agents),
+                patch.object(mcp_bridge, "store", FakeStore()),
+                patch.object(mcp_bridge, "router", None),
+                patch.object(mcp_bridge, "registry", None),
+            ):
+                result = mcp_bridge.chat_update_lane_item(
+                    sender="codex-reviewer",
+                    state="approved",
+                    note="handoff ready",
+                    channel="design",
+                )
+
+            restored = CommanderLedger(Path(tmp) / "commander_ledger.json")
+
+        self.assertIn('"ok": true', result)
+        self.assertEqual(restored.next_backlog_item("design")["text"], "mockups/index.html")
+        self.assertEqual(len(agents.triggers), 1)
+        self.assertEqual(agents.triggers[0]["agent_name"], "codex-orchestrator")
+        self.assertIn("mockups/index.html", agents.triggers[0]["prompt"])
+        self.assertIn("auto-advance", agents.triggers[0]["prompt"])
 
     async def test_commander_watchdog_escalates_repeated_quiet_lanes(self):
         router = Router(
