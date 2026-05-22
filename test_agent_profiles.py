@@ -206,13 +206,13 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertIn("codex-module-prototype-designer", profiles)
             self.assertIn("codex-qa", profiles)
             self.assertNotIn("codex-architecture-reviewer", profiles)
-            self.assertNotIn("codex-planner", profiles)
-            self.assertNotIn("codex-reviewer", profiles)
+            self.assertIn("codex-planner", profiles)
+            self.assertIn("codex-reviewer", profiles)
             self.assertNotIn("codex-challenger", profiles)
             self.assertNotIn("codex-researcher", profiles)
             self.assertNotIn("codex-prototyper", profiles)
             self.assertNotIn("codex-spike-prototyper", profiles)
-            self.assertNotIn("claude-researcher", profiles)
+            self.assertIn("claude-researcher", profiles)
             self.assertNotIn("claude-challenger", profiles)
             self.assertNotIn("gemini-researcher", profiles)
             self.assertNotIn("gemini-challenger", profiles)
@@ -227,6 +227,9 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profiles["codex-qa"]["thinking_effort"], "high")
             self.assertIn("browser qa", profiles["codex-qa"]["trigger_tags"])
             self.assertIn("regression test", profiles["codex-qa"]["trigger_tags"])
+            self.assertEqual(profiles["codex-planner"]["role"], "Planner")
+            self.assertEqual(profiles["codex-planner"]["launch_model"], "gpt-5.5")
+            self.assertIn("requirements", profiles["codex-planner"]["trigger_tags"])
             self.assertEqual(profiles["codex-module-prototype-designer"]["base"], "codex")
             self.assertEqual(profiles["codex-module-prototype-designer"]["model"], "Codex GPT-5.5")
             self.assertEqual(profiles["codex-module-prototype-designer"]["thinking_effort"], "high")
@@ -238,6 +241,12 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertNotIn("launch_model", profiles["claude-reviewer"])
             self.assertIn("trigger_tags", profiles["claude-reviewer"])
             self.assertIn("auto-approval mode", profiles["claude-reviewer"]["runtime_policy"])
+            self.assertEqual(profiles["codex-reviewer"]["role"], "Reviewer")
+            self.assertEqual(profiles["codex-reviewer"]["launch_model"], "gpt-5.5")
+            self.assertIn("code review", profiles["codex-reviewer"]["specialty"].lower())
+            self.assertEqual(profiles["claude-researcher"]["role"], "Researcher")
+            self.assertEqual(profiles["claude-researcher"]["launch_model"], "claude-opus-4-7[1m]")
+            self.assertIn("research", profiles["claude-researcher"]["trigger_tags"])
 
     def test_default_team_fills_existing_minimal_codex_qa_metadata(self):
         from team_config import apply_default_team_profiles
@@ -295,6 +304,7 @@ class AgentProfileStoreTest(unittest.TestCase):
                     self.assertEqual(profile["launch_effort"], "max")
 
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-orchestrator"]["thinking_effort"], "high")
+        self.assertEqual(DEFAULT_TEAM_PROFILES["codex-planner"]["thinking_effort"], "xhigh")
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-qa"]["thinking_effort"], "high")
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-module-prototype-designer"]["thinking_effort"], "high")
 
@@ -347,9 +357,10 @@ class AgentProfileStoreTest(unittest.TestCase):
             apply_default_team_profiles(data_dir, AGENTS)
 
             profiles = AgentProfileStore(profiles_path, AGENTS).get_all()
-            self.assertNotIn("codex-planner", profiles)
+            self.assertIn("codex-planner", profiles)
             self.assertNotIn("codex-dispatcher", profiles)
             self.assertEqual(profiles["codex-orchestrator"]["thinking_effort"], "high")
+            self.assertEqual(profiles["codex-planner"]["thinking_effort"], "xhigh")
             self.assertEqual(profiles["codex-qa"]["thinking_effort"], "high")
             self.assertEqual(profiles["codex-module-prototype-designer"]["thinking_effort"], "high")
             self.assertEqual(profiles["claude-reviewer"]["thinking_effort"], "max")
@@ -449,11 +460,11 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertNotIn("gemini-prototyper", profiles)
             self.assertNotIn("grok-prototyper", profiles)
             self.assertNotIn("codex-researcher", profiles)
-            self.assertNotIn("codex-planner", profiles)
-            self.assertNotIn("codex-reviewer", profiles)
+            self.assertIn("codex-planner", profiles)
+            self.assertIn("codex-reviewer", profiles)
             self.assertNotIn("codex-challenger", profiles)
             self.assertNotIn("codex-prototyper", profiles)
-            self.assertNotIn("claude-researcher", profiles)
+            self.assertIn("claude-researcher", profiles)
             self.assertNotIn("claude-challenger", profiles)
             self.assertEqual(profiles["codex-qa"]["model"], "Codex GPT-5.5")
             self.assertEqual(profiles["codex-module-prototype-designer"]["model"], "Codex GPT-5.5")
@@ -491,11 +502,11 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertNotIn("gemini-prototyper", roles)
             self.assertNotIn("grok-prototyper", roles)
             self.assertNotIn("codex-researcher", roles)
-            self.assertNotIn("codex-planner", roles)
-            self.assertNotIn("codex-reviewer", roles)
+            self.assertEqual(roles["codex-planner"], "Planner")
+            self.assertEqual(roles["codex-reviewer"], "Reviewer")
             self.assertNotIn("codex-challenger", roles)
             self.assertNotIn("codex-prototyper", roles)
-            self.assertNotIn("claude-researcher", roles)
+            self.assertEqual(roles["claude-researcher"], "Researcher")
             self.assertNotIn("claude-challenger", roles)
             self.assertEqual(roles["codex-qa"], "QA Engineer")
             self.assertEqual(roles["codex-module-prototype-designer"], "Module Prototype Designer")
@@ -584,12 +595,24 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertIn("parallel-dispatch", profiles["codex-orchestrator"]["specialty"])
             self.assertIn("track progress", profiles["codex-orchestrator"]["output_contract"])
             self.assertIn(
+                "@codex-planner: WHAT/WHEN ownership: fuzzy requests, requirements, scope, staged plans, milestones, handoff order, and next decisions.",
+                profiles["codex-orchestrator"]["team_roster"],
+            )
+            self.assertIn(
+                "@codex-architect: HOW-boundary ownership: architecture, data flow, API boundaries, schema, migrations, permissions, feasibility, and systemic tradeoffs.",
+                profiles["codex-orchestrator"]["team_roster"],
+            )
+            self.assertIn(
+                "Do not ask all agents by default; when using many agents or the full team, assign explicit slices and name why each selected agent is active.",
+                profiles["codex-orchestrator"]["routing_guidelines"],
+            )
+            self.assertIn(
                 "Use commander controls to keep active workers from waking each other into loops.",
                 profiles["codex-orchestrator"]["responsibilities"],
             )
             self.assertNotIn("api", profiles["codex-architect"]["trigger_tags"])
             self.assertIn("api design", profiles["codex-architect"]["trigger_tags"])
-            self.assertNotIn("claude-researcher", profiles)
+            self.assertIn("claude-researcher", profiles)
             self.assertNotIn("codex-challenger", profiles)
             self.assertEqual(profiles["codex-qa"]["role"], "QA Engineer")
 

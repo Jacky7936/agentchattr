@@ -78,8 +78,9 @@ echo "Configuring model-specialized agent team..."
 }
 
 SERVER_URL="http://192.168.50.201:8300"
+LOCAL_SERVER_URL="http://127.0.0.1:8300"
 SERVER_CMD="set -a; [ -f .env ] && . ./.env; set +a; printf 'YES\\n' | .venv/bin/python run.py --allow-network"
-AGENT_START_DELAY_SECONDS="${AGENTCHATTR_AGENT_START_DELAY_SECONDS:-5}"
+AGENT_REGISTER_TIMEOUT_SECONDS="${AGENTCHATTR_AGENT_REGISTER_TIMEOUT_SECONDS:-60}"
 
 # Detect if running inside a CMux terminal session
 IS_CMUX=0
@@ -153,11 +154,27 @@ start_agent() {
     fi
 }
 
-wait_between_agent_starts() {
-    if [ "${AGENT_START_DELAY_SECONDS:-0}" -gt 0 ] 2>/dev/null; then
-        echo "Waiting ${AGENT_START_DELAY_SECONDS}s before starting the next agent..."
-        sleep "$AGENT_START_DELAY_SECONDS"
+wait_for_agent_registration() {
+    local profile="$1"
+    local elapsed=0
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "curl not found; cannot wait for $profile registration."
+        return 0
     fi
+
+    echo "Waiting for $profile to register..."
+    while [ "$elapsed" -lt "${AGENT_REGISTER_TIMEOUT_SECONDS:-60}" ]; do
+        if curl -fsS "$LOCAL_SERVER_URL/api/agents/registered/$profile" >/dev/null 2>&1; then
+            echo "$profile registered."
+            return 0
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    echo "Timed out waiting for $profile registration; continuing."
+    return 0
 }
 
 if [ "$UI_PASSWORD_CREATED" -eq 1 ] && is_server_running; then
@@ -191,19 +208,25 @@ fi
 
 # 2. 在新終端機視窗中啟動精簡 Codex 主幹團隊 (Bypass 模式)
 start_agent ".venv/bin/python wrapper.py codex --profile codex-orchestrator --dangerously-bypass-approvals-and-sandbox" "Codex Orchestrator" "data/codex_orchestrator.log"
-wait_between_agent_starts
+wait_for_agent_registration "codex-orchestrator"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-planner --dangerously-bypass-approvals-and-sandbox" "Codex Planner" "data/codex_planner.log"
+wait_for_agent_registration "codex-planner"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-builder --dangerously-bypass-approvals-and-sandbox" "Codex Builder" "data/codex_builder.log"
-wait_between_agent_starts
+wait_for_agent_registration "codex-builder"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-architect --dangerously-bypass-approvals-and-sandbox" "Codex Architect" "data/codex_architect.log"
-wait_between_agent_starts
+wait_for_agent_registration "codex-architect"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-qa --dangerously-bypass-approvals-and-sandbox" "Codex QA" "data/codex_qa.log"
-wait_between_agent_starts
+wait_for_agent_registration "codex-qa"
+start_agent ".venv/bin/python wrapper.py codex --profile codex-reviewer --dangerously-bypass-approvals-and-sandbox" "Codex Reviewer" "data/codex_reviewer.log"
+wait_for_agent_registration "codex-reviewer"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-module-prototype-designer --dangerously-bypass-approvals-and-sandbox" "Codex Module Prototype Designer" "data/codex_module_prototype_designer.log"
-wait_between_agent_starts
+wait_for_agent_registration "codex-module-prototype-designer"
 
-# 3. 在新終端機視窗中啟動 review 專門角色
+# 3. 在新終端機視窗中啟動 research/review 專門角色
+start_agent ".venv/bin/python wrapper.py claude --profile claude-researcher --permission-mode auto" "Claude Researcher" "data/claude_researcher.log"
+wait_for_agent_registration "claude-researcher"
 start_agent ".venv/bin/python wrapper.py claude --profile claude-reviewer --permission-mode auto" "Claude Reviewer" "data/claude_reviewer.log"
-wait_between_agent_starts
+wait_for_agent_registration "claude-reviewer"
 
 # 4. 自動開啟瀏覽器聊天介面
 echo "Opening browser to Chat UI..."

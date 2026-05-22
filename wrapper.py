@@ -670,6 +670,12 @@ def _format_profile_context(profile: dict, *, role_fallback: str = "") -> str:
     responsibilities = _profile_list(profile.get("responsibilities"))
     if responsibilities:
         parts.append("RESPONSIBILITIES: " + "; ".join(responsibilities))
+    team_roster = _profile_list(profile.get("team_roster"))
+    if team_roster:
+        parts.append("TEAM ROSTER: " + "; ".join(team_roster))
+    routing_guidelines = _profile_list(profile.get("routing_guidelines"))
+    if routing_guidelines:
+        parts.append("ROUTING GUIDELINES: " + "; ".join(routing_guidelines))
     runtime_policy = str(profile.get("runtime_policy", "")).strip()
     if runtime_policy:
         parts.append(f"RUNTIME POLICY: {runtime_policy}")

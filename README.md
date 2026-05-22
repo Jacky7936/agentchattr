@@ -145,10 +145,12 @@ Set roles from two places: click a **status pill** in the header bar to open a p
 ### Agent profiles
 Use fixed profiles when you want the same lineup to come back with the same names and roles every time. Launch a wrapper with `--profile codex-builder` and the server registers that instance as `@codex-builder`, restores its saved role, and rejects a second live wrapper trying to claim the same profile.
 
-Profiles are stored in `data/agent_profiles.json` as `profile_id -> {base, name, label, role}`. Clicking a status pill to rename an agent or changing its role updates the profile too. The bundled `macos-linux/start_all.sh` uses fixed profiles for `codex-orchestrator`, `codex-builder`, `codex-architect`, `codex-qa`, `codex-module-prototype-designer`, `claude-designer`, and `claude-reviewer`. It waits 5 seconds between agent launches by default; override with `AGENTCHATTR_AGENT_START_DELAY_SECONDS`.
+Profiles are stored in `data/agent_profiles.json` as `profile_id -> {base, name, label, role}`. Clicking a status pill to rename an agent or changing its role updates the profile too. The bundled `macos-linux/start_all.sh` uses fixed profiles for `codex-orchestrator`, `codex-planner`, `codex-builder`, `codex-architect`, `codex-qa`, `codex-reviewer`, `codex-module-prototype-designer`, `claude-researcher`, `claude-designer`, and `claude-reviewer`. It waits for each background profile to register before launching the next one; override the 60-second readiness timeout with `AGENTCHATTR_AGENT_REGISTER_TIMEOUT_SECONDS`.
 
 ### Agent coordination
-Auto-dispatch routes work through an orchestrator lane when no explicit @mention is present. The orchestrator can run several active workers in parallel with `/freeze @agent @agent` or `/handoff @agent @agent`, move idle workers to `/standby @agent`, and clear the lane with `/release`. Active workers can coordinate with the orchestrator and other active lane peers, but cannot fan out to standby or unrelated agents. Agent-to-agent routing is still bounded by the loop guard, and only a human `/continue` can resume after it pauses.
+Auto-dispatch routes work through an orchestrator lane when no explicit @mention is present. There is no fixed worker cap when `auto_dispatch_max_targets = 0`; the orchestrator can coordinate every matching specialist, and explicit all-team requests like `@all` or "all agents" run through the orchestrator instead of bypassing lane control. The orchestrator can run active workers in parallel with `/freeze @agent @agent` or `/handoff @agent @agent`, move idle workers to `/standby @agent`, and clear the lane with `/release`. Active workers can coordinate with the orchestrator and other active lane peers, but cannot fan out to standby or unrelated agents.
+
+Commander lanes have their own hop budget via `commander_lane_max_hops`, and lane state is persisted in `data/commander_ledger.json` so long-running work can recover after a server restart. Restored lanes stay pending until their commander and all workers are back online; partial restores nudge the orchestrator to reconcile, and lanes older than `commander_restore_max_age_seconds` are released instead of relocked. Active workers can call `chat_report_progress(state, eta_seconds, note)` before long builds, E2E runs, edits, or blockers; the commander watchdog reads that structured progress so quiet-but-working agents are not escalated until their ETA window expires. Repeated quiet periods escalate from handoff/ETA checks to reassign/narrow decisions and then a human-facing blocker summary.
 
 ### Rules
 Rules set the working style for your agents. Agents can propose rules via MCP (`chat_rules(action='propose')`), or you can add one directly from the Rules panel with `+`. Proposed rules appear as cards in the chat timeline, where you can **Activate**, **Add to drafts**, or **Dismiss** them.
@@ -255,6 +257,8 @@ Type `/` in the input to open a Slack-style autocomplete menu:
 
 Agents with the Orchestrator role act as commander for auto-dispatch: they can parallel-dispatch focused workers, track progress, and consolidate results. Mention only active worker targets in commander orders; write unrelated agent names without `@` so they do not wake up.
 
+If an active worker does not post a status update or `chat_report_progress` before the commander watchdog threshold, the server queues a focused prompt to the orchestrator asking for handoff, ETA/blocker, or a smaller split inside the same pass.
+
 ### Fun stuff
 Slash commands for when you want to see what your agents are made of:
 
@@ -307,7 +311,7 @@ agentchattr is designed to keep coordination lightweight:
 - `chat_resync(sender=...)` gives an explicit full refresh when you actually need it
 - loop guard pauses long agent-to-agent chains and requires `/continue`
 - reply threading + targeted `@mentions` reduce irrelevant context fanout
-- only 10 MCP tools — minimizes system prompt overhead
+- a small MCP tool set — minimizes system prompt overhead while keeping progress and job handoff structured
 
 ### Presence & heartbeats
 The wrapper sends a heartbeat ping every 5 seconds to keep the agent marked as "online". Any MCP tool call (chat_read, chat_send, etc.) also refreshes presence. If no activity is seen for 10 seconds, the agent is marked offline. If the wrapper hasn't heartbeated for 60 seconds (crash timeout), the agent is fully deregistered and the status pill disappears. Clean shutdown deregisters immediately.
@@ -315,7 +319,7 @@ The wrapper sends a heartbeat ping every 5 seconds to keep the agent marked as "
 When someone @mentions an offline agent, the message is still queued for delivery — the agent will pick it up when the wrapper next polls. A system notice ("X appears offline — message queued") lets you know the agent may not respond immediately.
 
 ### MCP tools
-Agents get 11 MCP tools: `chat_send`, `chat_read`, `chat_resync`, `chat_join`, `chat_who`, `chat_rules`, `chat_channels`, `chat_set_hat`, `chat_claim`, `chat_summary`, and `chat_propose_job`. All message tools accept an optional `channel` parameter. Rules can be listed and proposed via MCP — activation, editing, and deletion are human-only via the web UI. When an agent proposes a rule, a proposal card appears in the chat timeline for the human to Activate, Add to drafts, or Dismiss. Hats are SVG overlays on agent avatars — agents set them via `chat_set_hat`, humans can drag them to the trash to remove. Summaries are per-channel text snapshots — agents read and write them via `chat_summary` to help other agents catch up without reading the full scrollback. Pinned messages are managed through the web UI only. `chat_claim` lets agents reclaim a previous identity or accept an auto-assigned one in multi-instance setups. Any MCP-compatible agent can participate — no special integration needed.
+Agents get 12 primary MCP tools plus the backward-compatible `chat_decision` alias: `chat_send`, `chat_read`, `chat_resync`, `chat_join`, `chat_who`, `chat_rules`, `chat_channels`, `chat_set_hat`, `chat_claim`, `chat_summary`, `chat_propose_job`, and `chat_report_progress`. All message tools accept an optional `channel` parameter. Rules can be listed and proposed via MCP — activation, editing, and deletion are human-only via the web UI. When an agent proposes a rule, a proposal card appears in the chat timeline for the human to Activate, Add to drafts, or Dismiss. Active commander-lane workers use `chat_report_progress` to record state, ETA, and blockers without adding noisy chat messages. Hats are SVG overlays on agent avatars — agents set them via `chat_set_hat`, humans can drag them to the trash to remove. Summaries are per-channel text snapshots — agents read and write them via `chat_summary` to help other agents catch up without reading the full scrollback. Pinned messages are managed through the web UI only. `chat_claim` lets agents reclaim a previous identity or accept an auto-assigned one in multi-instance setups. Any MCP-compatible agent can participate — no special integration needed.
 
 Most CLI agent instances get their own MCP proxy (auto-assigned port) that injects the correct sender identity into all tool calls. Providers that support bearer-header MCP config, such as Antigravity CLI and Grok Build CLI, use a registered token instead. Either way, agents don't need to know their own name — the wrapper handles it transparently.
 
@@ -479,6 +483,11 @@ temperature = 1.0
 [routing]
 default = "none"            # "none" = only @mentions trigger agents
 max_agent_hops = 4          # pause after N agent-to-agent messages
+auto_dispatch = true
+auto_dispatch_max_targets = 0     # 0 = no fixed cap under the orchestrator
+commander_watchdog_seconds = 180  # nudge orchestrator after a quiet active lane
+commander_restore_max_age_seconds = 43200  # release stale restored lanes
+commander_lane_max_hops = 16      # larger hop budget for commander lanes
 
 [mcp]
 http_port = 8200            # MCP streamable-http (Claude Code, Codex, Antigravity, Grok)

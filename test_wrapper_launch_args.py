@@ -294,6 +294,18 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertNotIn("RESPONSIBILITIES: None", formatted)
         self.assertNotIn("AVOID: None", formatted)
 
+    def test_profile_context_includes_orchestrator_roster_and_routing(self):
+        formatted = _format_profile_context(
+            {
+                "role": "Orchestrator",
+                "team_roster": ["@codex-planner: fuzzy scope and staged plans."],
+                "routing_guidelines": ["Bug or regression: ask @codex-qa first."],
+            }
+        )
+
+        self.assertIn("TEAM ROSTER: @codex-planner: fuzzy scope and staged plans.", formatted)
+        self.assertIn("ROUTING GUIDELINES: Bug or regression: ask @codex-qa first.", formatted)
+
 
 if __name__ == "__main__":
     unittest.main()

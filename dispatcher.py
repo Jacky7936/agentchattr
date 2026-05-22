@@ -7,6 +7,38 @@ from typing import Iterable
 
 from agent_profiles import normalize_profile_id
 
+DISPATCH_SCORE_THRESHOLD = 10
+NEAR_MISS_SCORE_THRESHOLD = 4
+
+MULTI_REVIEWER_PATTERNS = (
+    r"\bcross[- ]?model\b",
+    r"\bsecond[- ]?pass\b",
+    r"\bindependent review\b",
+    r"\bmajor risk\b",
+    r"\bhigh risk\b",
+    r"\bsecurity review\b",
+    r"\bdata[- ]?loss\b",
+    r"\bfinal confidence\b",
+    r"跨模型",
+    r"交叉檢查",
+    r"二審",
+    r"第二輪",
+    r"高風險",
+    r"重大風險",
+)
+
+COMMON_PROFILE_TOKENS = {
+    "agent",
+    "agents",
+    "human",
+    "model",
+    "role",
+    "task",
+    "tasks",
+    "work",
+    "works",
+}
+
 
 ROLE_KEYWORDS = {
     "orchestrator": ["orchestrate", "dispatch", "triage", "route", "assign", "who", "誰", "不確定", "派誰"],
@@ -24,7 +56,11 @@ ROLE_KEYWORDS = {
         "boundary",
         "data flow",
         "架構",
+        "資料表",
+        "資料庫",
         "資料流",
+        "邊界",
+        "權限",
     ],
     "builder": ["implement", "build", "fix", "code", "frontend", "backend", "test", "實作", "修", "修正"],
     "reviewer": ["review", "bug", "regression", "test", "maintainability", "pr", "檢查", "審查", "測試"],
@@ -73,6 +109,17 @@ ROLE_KEYWORDS = {
     "prototyper": ["prototype", "spike", "demo", "wireframe", "草案", "原型", "多方案"],
 }
 
+ALL_AGENT_REQUEST_PATTERNS = (
+    r"@(?:all|both)\b",
+    r"\ball agents\b",
+    r"\beveryone\b",
+    r"\bwhole team\b",
+    r"全部\s*(?:agents?|agent|人|成員|團隊)",
+    r"所有\s*(?:agents?|agent|人|成員|團隊)",
+    r"全員",
+    r"整個\s*團隊",
+)
+
 
 def select_dispatch_targets(
     text: str,
@@ -81,9 +128,14 @@ def select_dispatch_targets(
     active_names: Iterable[str] | None = None,
     max_targets: int = 3,
 ) -> list[str]:
-    """Return agent names whose profile metadata best matches a task."""
-    if not text or not profiles or max_targets <= 0:
+    """Return agent names whose profile metadata best matches a task.
+
+    max_targets <= 0 means no cap.
+    """
+    if not text or not profiles:
         return []
+
+    unlimited = max_targets <= 0
 
     active = {normalize_profile_id(n) for n in active_names} if active_names is not None else None
     scored = []
@@ -94,7 +146,7 @@ def select_dispatch_targets(
         if active is not None and name not in active and normalize_profile_id(profile_id) not in active:
             continue
         score = _score_profile(text, profile)
-        if score < 10:
+        if score < DISPATCH_SCORE_THRESHOLD:
             continue
         role = str(profile.get("role", "")).strip().lower()
         scored.append(
@@ -113,9 +165,10 @@ def select_dispatch_targets(
         return [fallback] if fallback else []
 
     non_dispatchers = [item for item in scored if not item["is_dispatcher"]]
-    candidates = _prune_same_role_candidates(non_dispatchers) if non_dispatchers else scored
+    candidates = _prune_same_role_candidates(non_dispatchers, text) if non_dispatchers else scored
     candidates.sort(key=lambda item: (-item["score"], item["rank"], item["name"]))
-    return [item["name"] for item in candidates[:max_targets]]
+    names = [item["name"] for item in candidates]
+    return names if unlimited else names[:max_targets]
 
 
 def _score_profile(text: str, profile: dict) -> int:
@@ -157,7 +210,7 @@ def _has_trigger_tag(text: str, profile: dict) -> bool:
     return any(_contains_term(haystack, _normalize_text(tag)) for tag in _string_list(profile.get("trigger_tags")))
 
 
-def _prune_same_role_candidates(candidates: list[dict]) -> list[dict]:
+def _prune_same_role_candidates(candidates: list[dict], text: str = "") -> list[dict]:
     by_role: dict[str, list[dict]] = {}
     for item in candidates:
         by_role.setdefault(item["role"], []).append(item)
@@ -167,6 +220,10 @@ def _prune_same_role_candidates(candidates: list[dict]) -> list[dict]:
         if len(role_candidates) == 1:
             pruned.extend(role_candidates)
             continue
+        if _is_reviewer_role(role_candidates[0]["role"]) and not _allows_multiple_reviewers(text):
+            role_candidates.sort(key=lambda item: (-item["score"], item["rank"], item["name"]))
+            pruned.append(role_candidates[0])
+            continue
         tagged = [item for item in role_candidates if item["tag_match"]]
         if tagged:
             pruned.extend(tagged)
@@ -174,6 +231,53 @@ def _prune_same_role_candidates(candidates: list[dict]) -> list[dict]:
         role_candidates.sort(key=lambda item: (-item["score"], item["rank"], item["name"]))
         pruned.append(role_candidates[0])
     return pruned
+
+
+def select_dispatch_near_misses(
+    text: str,
+    profiles: dict[str, dict],
+    *,
+    active_names: Iterable[str] | None = None,
+    selected_names: Iterable[str] | None = None,
+    max_targets: int = 3,
+) -> list[dict]:
+    """Return lower-confidence candidates for orchestrator context only."""
+    if not text or not profiles or max_targets == 0:
+        return []
+
+    active = {normalize_profile_id(n) for n in active_names} if active_names is not None else None
+    selected = {normalize_profile_id(n) for n in selected_names or []}
+    near = []
+    for profile_id, profile in profiles.items():
+        name = normalize_profile_id(str(profile.get("name") or profile_id))
+        if not name or name in selected:
+            continue
+        if active is not None and name not in active and normalize_profile_id(profile_id) not in active:
+            continue
+        role = str(profile.get("role", "")).strip().lower()
+        if _is_orchestrator_role(role):
+            continue
+        score = _score_profile(text, profile)
+        if score >= DISPATCH_SCORE_THRESHOLD:
+            continue
+        near_score = max(score, _near_miss_score(text, profile))
+        if near_score < NEAR_MISS_SCORE_THRESHOLD:
+            continue
+        near.append(
+            {
+                "name": name,
+                "role": role,
+                "score": near_score,
+                "rank": _profile_rank(profile),
+            }
+        )
+
+    near.sort(key=lambda item: (-item["score"], item["rank"], item["name"]))
+    limited = near if max_targets < 0 else near[:max_targets]
+    return [
+        {"name": item["name"], "role": item["role"], "score": item["score"]}
+        for item in limited
+    ]
 
 
 def _fallback_dispatcher(profiles: dict[str, dict], active: set[str] | None) -> str:
@@ -199,22 +303,37 @@ def plan_orchestrator_dispatch(
     active_names: Iterable[str] | None = None,
     max_workers: int = 3,
 ) -> dict[str, object]:
-    """Build an auto-dispatch plan with an orchestrator and parallel workers."""
-    workers = select_dispatch_targets(
+    """Build an auto-dispatch plan with an orchestrator and parallel workers.
+
+    max_workers <= 0 means no cap. Explicit all-agent requests select the full
+    available roster under the orchestrator's lane.
+    """
+    active = {normalize_profile_id(n) for n in active_names} if active_names is not None else None
+    orchestrator = _fallback_dispatcher(profiles, active)
+    if requests_all_agents(text):
+        workers = _available_profile_names(profiles, active)
+    else:
+        workers = select_dispatch_targets(
+            text,
+            profiles,
+            active_names=active_names,
+            max_targets=max_workers,
+        )
+    workers = [name for name in workers if name != orchestrator]
+    targets = ([orchestrator] if orchestrator else []) + workers
+    near_misses = select_dispatch_near_misses(
         text,
         profiles,
         active_names=active_names,
-        max_targets=max_workers,
+        selected_names=targets,
+        max_targets=3,
     )
-    active = {normalize_profile_id(n) for n in active_names} if active_names is not None else None
-    orchestrator = _fallback_dispatcher(profiles, active)
-    workers = [name for name in workers if name != orchestrator]
-    targets = ([orchestrator] if orchestrator else []) + workers
     return {
         "orchestrator": orchestrator,
         "commander": orchestrator,
         "workers": workers,
         "targets": targets,
+        "near_misses": near_misses,
     }
 
 
@@ -225,6 +344,36 @@ def plan_commander_dispatch(*args, **kwargs) -> dict[str, object]:
 
 def _is_orchestrator_role(role: str) -> bool:
     return role in ("orchestrator", "dispatcher")
+
+
+def _is_reviewer_role(role: str) -> bool:
+    return "reviewer" in str(role or "").lower()
+
+
+def _allows_multiple_reviewers(text: str) -> bool:
+    haystack = _normalize_text(text or "")
+    return any(re.search(pattern, haystack, re.IGNORECASE) for pattern in MULTI_REVIEWER_PATTERNS)
+
+
+def requests_all_agents(text: str) -> bool:
+    haystack = _normalize_text(text or "")
+    return any(re.search(pattern, haystack, re.IGNORECASE) for pattern in ALL_AGENT_REQUEST_PATTERNS)
+
+
+def _available_profile_names(profiles: dict[str, dict], active: set[str] | None) -> list[str]:
+    names = []
+    ranked = []
+    for profile_id, profile in profiles.items():
+        name = normalize_profile_id(str(profile.get("name") or profile_id))
+        if not name:
+            continue
+        if active is not None and name not in active and normalize_profile_id(profile_id) not in active:
+            continue
+        ranked.append((_profile_rank(profile), name))
+    for _, name in sorted(ranked):
+        if name not in names:
+            names.append(name)
+    return names
 
 
 def _profile_rank(profile: dict) -> int:
@@ -243,6 +392,24 @@ def _string_list(value) -> list[str]:
 
 def _normalize_text(value: str) -> str:
     return str(value).casefold()
+
+
+def _near_miss_score(text: str, profile: dict) -> int:
+    haystack = _normalize_text(text)
+    terms = (
+        _string_list(profile.get("trigger_tags"))
+        + _string_list(profile.get("specialty"))
+        + _string_list(profile.get("responsibilities"))
+        + _string_list(profile.get("label"))
+    )
+    matches = {
+        token
+        for token in _tokens(" ".join(terms))
+        if token not in COMMON_PROFILE_TOKENS and len(token) >= 5 and token in haystack
+    }
+    if len(matches) < 2:
+        return 0
+    return min(9, len(matches) * 2)
 
 
 def _contains_term(haystack: str, term: str) -> bool:

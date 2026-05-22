@@ -26,6 +26,7 @@ registry = None       # set by run.py — RuntimeRegistry instance
 config = None         # set by run.py — full config.toml dict
 router = None         # set by run.py — Router instance
 agents = None         # set by run.py — AgentManager instance
+commander_ledger = None  # set by run.py — CommanderLedger instance
 _presence: dict[str, float] = {}
 _activity: dict[str, bool] = {}   # True = screen changed on last poll
 _activity_ts: dict[str, float] = {}  # timestamp of last active=True heartbeat
@@ -123,6 +124,12 @@ _MCP_INSTRUCTIONS = (
     "That read returns a header entry first, including the job title and body, followed by the thread messages. "
     "Then use chat_send(job_id=N, message='...') to reply within it. "
     "Job conversations are separate from the main timeline — your response should go to the job, not the channel.\n\n"
+    "CRITICAL — Progress Reports:\n"
+    "When you are an active worker in a commander lane and you start long work, run tests, hit a blocker, "
+    "or need more than a short chat turn, call chat_report_progress(sender=your_name, state='running', "
+    "eta_seconds=300, note='what is happening', channel='the-channel'). "
+    "Use state='blocked' with a clear note when you need a commander decision. This prevents the watchdog from "
+    "mistaking quiet long-running work for no progress.\n\n"
     "CRITICAL — Proposing Jobs:\n"
     "Agents must ONLY propose jobs using chat_propose_job when explicitly asked by the user, OR when the request is a clearly 'scoped task'. "
     "A task is scoped if it has: 1) Concrete outcome, 2) Specific boundary, 3) Clear done criteria, 4) Explicit owner/intention, and 5) Appropriate size. "
@@ -395,6 +402,69 @@ def chat_propose_job(
     with _presence_lock:
         _presence[sender] = time.time()
     return f"Proposed job (msg_id={msg['id']}): {title}"
+
+
+def chat_report_progress(
+    sender: str,
+    state: str = "working",
+    eta_seconds: int = 0,
+    note: str = "",
+    channel: str = "",
+    ctx: Context | None = None,
+) -> str:
+    """Report structured progress for an active commander-lane worker.
+
+    Use this before long-running work, during test/build runs, and when blocked.
+    `eta_seconds` tells the watchdog how long to wait before asking for status.
+    """
+    sender, err = _resolve_tool_identity(sender, ctx, field_name="sender", required=True)
+    if err:
+        return err
+    if not router:
+        return "Error: router not available."
+
+    if sender and not channel:
+        with _last_read_lock:
+            fallback_channel = _last_read_channel.get(sender, "")
+            fallback_job = _last_read_job_id.get(sender, 0)
+        if fallback_channel:
+            channel = fallback_channel
+        elif fallback_job and jobs:
+            job = jobs.get(fallback_job)
+            if job:
+                channel = job.get("channel", "")
+    channel = (channel or "general").strip()
+
+    status = router.note_progress(
+        channel,
+        sender,
+        state=state,
+        eta_seconds=eta_seconds,
+        note=note,
+    )
+    progress = status.get("worker_progress") or {}
+    if sender not in progress:
+        return f"Progress ignored: @{sender} is not an active worker in #{channel}."
+
+    if commander_ledger:
+        commander_ledger.note_progress(
+            channel,
+            sender,
+            state=state,
+            eta_seconds=eta_seconds,
+            note=note,
+        )
+    _touch_presence(sender)
+    return json.dumps(
+        {
+            "ok": True,
+            "channel": channel,
+            "sender": sender,
+            "progress": progress[sender],
+            "active_agents": status.get("active_agents", []),
+        },
+        ensure_ascii=False,
+    )
 
 
 def _resolve_attachments(attachments: list[dict]) -> list[dict]:
@@ -953,6 +1023,7 @@ def chat_summary(
 _ALL_TOOLS = [
     chat_send, chat_read, chat_resync, chat_join, chat_who, chat_rules, chat_decision,
     chat_channels, chat_set_hat, chat_claim, chat_summary, chat_propose_job,
+    chat_report_progress,
 ]
 
 

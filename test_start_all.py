@@ -8,10 +8,13 @@ class StartAllTeamLaunchTest(unittest.TestCase):
         script = Path("macos-linux/start_all.sh").read_text("utf-8")
         expected = {
             "codex-orchestrator": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
+            "codex-planner": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-builder": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-architect": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-qa": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-module-prototype-designer": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
+            "codex-reviewer": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
+            "claude-researcher": ("wrapper.py claude", "--permission-mode auto"),
             "claude-reviewer": ("wrapper.py claude", "--permission-mode auto"),
             "claude-designer": ("wrapper.py claude", "--permission-mode auto"),
         }
@@ -22,16 +25,15 @@ class StartAllTeamLaunchTest(unittest.TestCase):
                 self.assertIn(provider, command)
                 self.assertIn(flag, command)
 
-        self.assertIn('AGENT_START_DELAY_SECONDS="${AGENTCHATTR_AGENT_START_DELAY_SECONDS:-5}"', script)
-        self.assertGreaterEqual(script.count("wait_between_agent_starts"), len(expected))
+        self.assertIn('AGENT_REGISTER_TIMEOUT_SECONDS="${AGENTCHATTR_AGENT_REGISTER_TIMEOUT_SECONDS:-60}"', script)
+        self.assertIn("wait_for_agent_registration()", script)
+        self.assertNotIn("wait_between_agent_starts", script)
+        self.assertGreaterEqual(script.count("wait_for_agent_registration"), len(expected))
         self.assertNotIn("--profile codex-architecture-reviewer", script)
         self.assertNotIn("--profile codex-spike-prototyper", script)
         self.assertNotIn("--profile codex-dispatcher", script)
-        self.assertNotIn("--profile codex-planner", script)
-        self.assertNotIn("--profile codex-reviewer", script)
         self.assertNotIn("--profile codex-challenger", script)
         self.assertNotIn("--profile codex-prototyper", script)
-        self.assertNotIn("--profile claude-researcher", script)
         self.assertNotIn("--profile claude-challenger", script)
 
     def _launch_command(self, script: str, profile: str) -> str:

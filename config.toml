@@ -98,8 +98,15 @@ temperature = 1.0
 default = "none"
 max_agent_hops = 4
 auto_dispatch = true
-auto_dispatch_max_targets = 3
+# 0 = no fixed cap; orchestrator may coordinate every matching/explicitly requested agent.
+auto_dispatch_max_targets = 0
 auto_dispatch_announce = true
+commander_watchdog_seconds = 180
+# Active lanes older than this are released instead of restored after restart.
+commander_restore_max_age_seconds = 43200
+# Commander lanes get a larger hop budget than ordinary agent chatter.
+# 0 disables the hop cap inside commander lanes.
+commander_lane_max_hops = 16
 
 [mcp]
 http_port = 8200

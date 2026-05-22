@@ -23,7 +23,8 @@ from router import Router
 from agents import AgentTrigger
 from registry import RuntimeRegistry
 from agent_profiles import AgentProfileStore, normalize_profile_id
-from dispatcher import plan_orchestrator_dispatch
+from commander_ledger import CommanderLedger
+from dispatcher import plan_orchestrator_dispatch, requests_all_agents
 from session_store import SessionStore, validate_session_template
 from session_engine import SessionEngine
 
@@ -43,8 +44,11 @@ registry: RuntimeRegistry | None = None
 agent_profiles: AgentProfileStore | None = None
 session_store: SessionStore | None = None
 session_engine: SessionEngine | None = None
+commander_ledger: CommanderLedger | None = None
 config: dict = {}
 ws_clients: set[WebSocket] = set()
+_restored_commander_lanes: set[str] = set()
+_restore_reconcile_notified: set[str] = set()
 
 # --- Security: session token (set by configure()) ---
 session_token: str = ""
@@ -193,7 +197,7 @@ def install_security_middleware(target_app: FastAPI, token: str, cfg: dict):
                 return await call_next(request)
 
             # Agent registration/heartbeat: loopback only (no remote agent minting).
-            if path.startswith(("/api/register", "/api/deregister/", "/api/heartbeat/")):
+            if path.startswith(("/api/register", "/api/deregister/", "/api/heartbeat/", "/api/agents/registered/")):
                 client_ip = request.client.host if request.client else ""
                 if client_ip not in ("127.0.0.1", "::1", "localhost"):
                     return JSONResponse(
@@ -243,7 +247,7 @@ def _install_security_middleware(token: str, cfg: dict):
 
 
 def configure(cfg: dict, session_token: str = ""):
-    global store, rules, summaries, jobs, schedules, router, agents, registry, agent_profiles, session_store, session_engine, config
+    global store, rules, summaries, jobs, schedules, router, agents, registry, agent_profiles, session_store, session_engine, commander_ledger, config
     config = cfg
     # --- Security: store the session token and install middleware ---
     _install_security_middleware(session_token, cfg)
@@ -285,6 +289,10 @@ def configure(cfg: dict, session_token: str = ""):
     schedules.on_change(_on_schedule_change)
 
     max_hops = cfg.get("routing", {}).get("max_agent_hops", 4)
+    commander_max_hops = cfg.get("routing", {}).get("commander_lane_max_hops", max_hops)
+    commander_ledger = CommanderLedger(Path(data_dir) / "commander_ledger.json")
+    _restored_commander_lanes.clear()
+    _restore_reconcile_notified.clear()
 
     # Registry: single source of truth for all live agent state
     registry = RuntimeRegistry(data_dir=data_dir)
@@ -301,6 +309,7 @@ def configure(cfg: dict, session_token: str = ""):
         agent_names=agent_names,
         default_mention=cfg.get("routing", {}).get("default", "none"),
         max_hops=max_hops,
+        commander_max_hops=commander_max_hops,
         online_checker=lambda: set(registry.get_active_names()) if registry else set(),
     )
     agents = AgentTrigger(registry, data_dir=data_dir)
@@ -459,6 +468,13 @@ def configure(cfg: dict, session_token: str = ""):
                         asyncio.run_coroutine_threadsafe(broadcast_status(), _event_loop)
                 _known_online.clear()
                 _known_online.update(currently_online)
+            except Exception:
+                pass
+
+            try:
+                if _event_loop:
+                    asyncio.run_coroutine_threadsafe(_maybe_restore_commander_lanes(now), _event_loop)
+                    asyncio.run_coroutine_threadsafe(_run_commander_watchdog(now), _event_loop)
             except Exception:
                 pass
 
@@ -659,6 +675,125 @@ def _routing_int(key: str, default: int) -> int:
         return default
 
 
+async def _maybe_restore_commander_lanes(now: float | None = None) -> list[str]:
+    if not (router and commander_ledger and registry):
+        return []
+
+    import time as _time
+    import mcp_bridge
+
+    ts = _time.time() if now is None else float(now)
+    max_age = _routing_int("commander_restore_max_age_seconds", 43200)
+    restored: list[str] = []
+    for lane in commander_ledger.active_lanes():
+        channel = str(lane.get("channel") or "general")
+        if channel in _restored_commander_lanes:
+            continue
+        updated_at = float(lane.get("updated_at") or lane.get("created_at") or 0.0)
+        if max_age > 0 and updated_at and ts - updated_at > max_age:
+            commander_ledger.release_lane(
+                channel,
+                updated_by="system",
+                reason=f"stale restore timeout after {int(ts - updated_at)}s",
+                now=ts,
+            )
+            if store:
+                store.add(
+                    "system",
+                    f"Commander restore skipped in #{channel}: previous lane was stale.",
+                    msg_type="system",
+                    channel=channel,
+                )
+            continue
+
+        commander = normalize_profile_id(str(lane.get("commander") or ""))
+        active_agents = [
+            normalize_profile_id(str(agent))
+            for agent in lane.get("active_agents", [])
+            if normalize_profile_id(str(agent))
+        ]
+        if not commander or not active_agents:
+            continue
+
+        registered = set(registry.get_active_names())
+        online = {name for name in registered if mcp_bridge.is_online(name)}
+        commander_online = commander in online
+        online_workers = [agent for agent in active_agents if agent in online]
+
+        if commander_online and len(online_workers) == len(active_agents):
+            router.set_commander_lock(
+                channel,
+                active_agents=active_agents,
+                updated_by=commander,
+                reason=str(lane.get("reason") or lane.get("task") or "restored commander lane"),
+                now=updated_at or ts,
+            )
+            _restored_commander_lanes.add(channel)
+            _restore_reconcile_notified.discard(channel)
+            if store:
+                restored_text = " ".join(f"@{agent}" for agent in active_agents)
+                store.add(
+                    "system",
+                    f"Commander lane restored in #{channel}: @{commander} coordinating {restored_text}.",
+                    msg_type="system",
+                    channel=channel,
+                )
+            restored.append(channel)
+            continue
+
+        if commander_online and online_workers and channel not in _restore_reconcile_notified:
+            _restore_reconcile_notified.add(channel)
+            missing = [agent for agent in active_agents if agent not in online]
+            online_text = " ".join(f"@{agent}" for agent in online_workers)
+            missing_text = " ".join(f"@{agent}" for agent in missing) or "none"
+            notice = (
+                f"Commander restore pending in #{channel}: @{commander} is online, "
+                f"online workers={online_text or 'none'}, missing={missing_text}."
+            )
+            prompt = (
+                f"use mcp to read #{channel}. A previous commander lane was restored from the ledger, "
+                f"but only these workers are online: {online_text or 'none'}. Missing: {missing_text}. "
+                "Do not assume the old lane is active. Decide whether to /handoff to online workers, "
+                "/release the stale lane, or ask the human for the missing decision. Post one concise "
+                "restore decision and stop."
+            )
+            if store:
+                store.add("system", notice, msg_type="system", channel=channel)
+            if agents and agents.is_available(commander):
+                await agents.trigger(commander, message=notice, channel=channel, prompt=prompt)
+    return restored
+
+
+def _record_commander_lane(
+    channel: str,
+    *,
+    commander: str,
+    workers: list[str],
+    task: str,
+    reason: str,
+    event_type: str = "start",
+):
+    if commander_ledger:
+        commander_ledger.start_lane(
+            channel,
+            commander=commander,
+            active_agents=workers,
+            task=task,
+            reason=reason,
+            event_type=event_type,
+        )
+
+
+def _release_commander_lane(channel: str, *, updated_by: str = "", reason: str = ""):
+    if commander_ledger:
+        commander_ledger.release_lane(channel, updated_by=updated_by, reason=reason)
+
+
+def _note_commander_activity(channel: str, sender: str, timestamp: float | None = None):
+    if commander_ledger:
+        commander_ledger.note_activity(channel, sender, now=timestamp)
+
+
 def _auto_dispatch_enabled() -> bool:
     return bool(config.get("routing", {}).get("auto_dispatch", False))
 
@@ -666,6 +801,7 @@ def _auto_dispatch_enabled() -> bool:
 def _should_auto_dispatch(sender: str, text: str, msg_type: str, stripped: str, known_agents: set[str]) -> bool:
     return (
         _auto_dispatch_enabled()
+        and agent_profiles is not None
         and msg_type == "chat"
         and bool(text.strip())
         and sender not in known_agents
@@ -681,7 +817,7 @@ def _select_auto_dispatch_plan(text: str) -> dict[str, object]:
         text,
         agent_profiles.get_all(),
         active_names=active_names,
-        max_workers=_routing_int("auto_dispatch_max_targets", 3),
+        max_workers=_routing_int("auto_dispatch_max_targets", 0),
     )
 
 
@@ -691,25 +827,40 @@ def _auto_dispatch_prompt(
     target: str = "",
     commander: str = "",
     workers: list[str] | None = None,
+    near_misses: list[dict] | None = None,
 ) -> str:
     workers = workers or []
+    near_misses = near_misses or []
     if commander and target == commander:
         worker_text = ", ".join(f"@{worker}" for worker in workers) or "none"
+        near_text = ""
+        if near_misses:
+            near_parts = []
+            for item in near_misses:
+                name = str(item.get("name") or "").strip()
+                role = str(item.get("role") or "").strip()
+                if name:
+                    near_parts.append(f"@{name}" + (f" ({role})" if role else ""))
+            if near_parts:
+                near_text = " near-miss specialists for context only: " + ", ".join(near_parts) + ". Ask them only if the lane needs that specialty."
         return (
             f"use mcp to read #{channel}. ROLE: Orchestrator. You are coordinating "
             f"the active worker lane: {worker_text}. Track progress, split work, ask for concise "
-            "status updates, and consolidate the result for the human. You may parallel-dispatch "
+            "status updates, and consolidate the result for the human. There is no fixed worker cap; "
+            "when many agents are active, assign explicit slices and expected outputs. You may parallel-dispatch "
             "active workers and let active workers coordinate with each other inside the lane, "
             "but prevent loops: use /handoff @agent, /freeze @agent @agent, /standby @agent, "
             "/release, and mention only intended active workers. When the work is complete, "
             "summarize once for the human, release or narrow the lane, and stop."
+            + near_text
         )
     if commander and target in workers:
         peer_text = ", ".join(f"@{worker}" for worker in workers if worker != target) or "none"
         return (
             f"use mcp to read #{channel} - you were dispatched as an active worker under "
             f"@{commander}. Work only on your role's slice, report progress and blockers back "
-            f"to @{commander}, and coordinate only with active lane peers when it is necessary: "
+            f"to @{commander}. For long work or test/build runs, call chat_report_progress with "
+            "state, eta_seconds, and a short note. Coordinate only with active lane peers when it is necessary: "
             f"{peer_text}. Do not mention or wake agents outside the active lane. When your slice "
             "is done, report done/blockers once and stop."
         )
@@ -779,7 +930,9 @@ def _control_status_text(channel: str) -> str:
     active = ", ".join(f"@{name}" for name in active_names) or "none"
     standby = ", ".join(f"@{name}" for name in status.get("standby", [])) or "none"
     locked = "locked" if status.get("locked") else "released"
-    return f"Commander status for #{channel}: {locked}; active={active}; standby={standby}."
+    progress = _watchdog_progress_text(status)
+    progress_text = f"; progress={progress}" if progress else ""
+    return f"Commander status for #{channel}: {locked}; active={active}; standby={standby}{progress_text}."
 
 
 async def _trigger_commander_target(target: str, sender: str, text: str, channel: str):
@@ -834,6 +987,14 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
             )
             return True
         router.set_commander_lock(channel, active_agents=targets, updated_by=sender, reason=reason)
+        _record_commander_lane(
+            channel,
+            commander=sender,
+            workers=targets,
+            task=reason,
+            reason=reason,
+            event_type="handoff",
+        )
         active = " ".join(f"@{target}" for target in targets)
         store.add(
             "system",
@@ -856,6 +1017,18 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
             )
             return True
         status = router.set_standby(channel, agents=targets, updated_by=sender, reason=reason)
+        remaining = status.get("active_agents", [])
+        if remaining:
+            _record_commander_lane(
+                channel,
+                commander=sender,
+                workers=remaining,
+                task=reason,
+                reason=reason,
+                event_type="standby",
+            )
+        else:
+            _release_commander_lane(channel, updated_by=sender, reason=reason)
         standby = ", ".join(f"@{name}" for name in status["standby"])
         store.add("system", f"Commander standby: {standby} will not route other agents in #{channel}.", msg_type="system", channel=channel)
         await broadcast_status()
@@ -863,6 +1036,7 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
 
     if cmd in ("/release", "/unfreeze"):
         router.release_commander_lock(channel, updated_by=sender)
+        _release_commander_lane(channel, updated_by=sender, reason=reason)
         store.add("system", f"Commander lock released in #{channel}.", msg_type="system", channel=channel)
         await broadcast_status()
         return True
@@ -872,6 +1046,159 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
         return True
 
     return False
+
+
+def _known_agent_names() -> set[str]:
+    names: set[str] = set()
+    if registry:
+        names.update(registry.get_all_names())
+    if router:
+        names.update(router.agent_names)
+    names.update(config.get("agents", {}).keys())
+    return {normalize_profile_id(name) for name in names if normalize_profile_id(name)}
+
+
+def _resolve_watchdog_commander(status: dict) -> str:
+    known_agents = _known_agent_names()
+    candidates = [status.get("updated_by", "")]
+    candidates.extend(sorted(name for name in known_agents if name.endswith(("-orchestrator", "-dispatcher"))))
+    candidates.extend(sorted(name for name in known_agents if name in ("orchestrator", "dispatcher")))
+    for candidate in candidates:
+        clean = normalize_profile_id(str(candidate or ""))
+        if clean in known_agents and _is_commander_sender(clean):
+            return clean
+    return ""
+
+
+def _progress_eta_hold_until(status: dict, threshold: int) -> float:
+    hold_until = max(
+        float(status.get("last_worker_activity_at") or 0.0) + threshold,
+        float(status.get("last_worker_progress_at") or 0.0) + threshold,
+        float(status.get("updated_at") or 0.0) + threshold,
+    )
+    for progress in (status.get("worker_progress") or {}).values():
+        state = str(progress.get("state", "")).strip().lower()
+        if state in ("blocked", "done", "complete", "completed", "stalled"):
+            continue
+        eta_seconds = _safe_int(progress.get("eta_seconds"), 0)
+        updated_at = float(progress.get("updated_at") or 0.0)
+        if updated_at and eta_seconds > 0:
+            hold_until = max(hold_until, updated_at + eta_seconds)
+    return hold_until
+
+
+def _safe_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _watchdog_progress_text(status: dict) -> str:
+    parts = []
+    for agent, progress in (status.get("worker_progress") or {}).items():
+        state = str(progress.get("state") or "working")
+        eta_seconds = _safe_int(progress.get("eta_seconds"), 0)
+        note = str(progress.get("note") or "").strip()
+        eta_text = f", eta={eta_seconds}s" if eta_seconds > 0 else ""
+        note_text = f", note={note}" if note else ""
+        parts.append(f"@{agent}: {state}{eta_text}{note_text}")
+    return "; ".join(parts)
+
+
+def _commander_watchdog_prompt(
+    channel: str,
+    active_text: str,
+    quiet_for: int,
+    level: int,
+    *,
+    progress_text: str = "",
+) -> str:
+    base = (
+        f"use mcp to read #{channel}. Commander watchdog handoff/ETA check: {active_text} has not posted "
+        f"a worker update for {quiet_for} seconds. "
+    )
+    if progress_text:
+        base += f"last progress: {progress_text}. "
+    if level <= 1:
+        return (
+            base
+            + "Check the latest channel state. If no handoff or ETA landed, ask the active worker for exactly one of: "
+            "handoff if ready; ETA + completed stage + blocker; or a smaller split inside the current pass. "
+            "Do not open a new module. After sending the request, stop."
+        )
+    if level == 2:
+        return (
+            base
+            + "This is watchdog escalation 2. Do not simply wait again. Re-read the lane, ask each quiet active worker "
+            "for one concise status, and decide whether to narrow the lane, reassign to another active specialist, "
+            "or split the current pass smaller. Post the decision and stop."
+        )
+    return (
+        base
+        + f"This is watchdog escalation {level}. Summarize the lane state for the human, name the likely blocker, "
+        "and make one commander decision: /handoff to a better active worker, /standby stuck workers, /release if done, "
+        "or ask the human for the one missing decision. Do not keep the lane waiting silently; post the escalation "
+        "summary and stop."
+    )
+
+
+async def _run_commander_watchdog(now: float | None = None) -> list[str]:
+    if not (router and store and agents):
+        return []
+    threshold = _routing_int("commander_watchdog_seconds", 180)
+    if threshold <= 0:
+        return []
+
+    import time as _time
+    ts = _time.time() if now is None else float(now)
+    nudged: list[str] = []
+    for channel in room_settings.get("channels", ["general"]):
+        status = router.get_commander_status(channel)
+        active_agents = status.get("active_agents") or (
+            [status.get("active_agent")] if status.get("active_agent") else []
+        )
+        active_agents = [name for name in active_agents if name]
+        if not status.get("locked") or not active_agents:
+            continue
+
+        last_worker_at = float(status.get("last_worker_activity_at") or 0.0)
+        last_progress_at = float(status.get("last_worker_progress_at") or 0.0)
+        last_lane_at = max(last_worker_at, last_progress_at, float(status.get("updated_at") or 0.0))
+        if not last_lane_at or ts < _progress_eta_hold_until(status, threshold):
+            continue
+
+        reminded_at = float(status.get("watchdog_reminded_at") or 0.0)
+        if reminded_at and ts - reminded_at < threshold:
+            continue
+
+        commander = _resolve_watchdog_commander(status)
+        if not commander or not agents.is_available(commander):
+            continue
+
+        level = int(status.get("watchdog_count", 0) or 0) + 1
+        router.mark_commander_watchdog(channel, timestamp=ts)
+        quiet_for = max(0, int(ts - last_lane_at))
+        active_text = " ".join(f"@{name}" for name in active_agents)
+        label = "Commander watchdog" if level <= 1 else f"Commander watchdog escalation {level}"
+        notice = (
+            f"{label}: {active_text} has been quiet for {quiet_for}s in #{channel}; "
+            f"nudging @{commander} for handoff/ETA."
+        )
+        prompt = _commander_watchdog_prompt(
+            channel,
+            active_text,
+            quiet_for,
+            level,
+            progress_text=_watchdog_progress_text(status),
+        )
+        if commander_ledger:
+            commander_ledger.note_watchdog(channel, quiet_for=quiet_for, level=level, now=ts)
+        store.add("system", notice, msg_type="system", channel=channel)
+        await agents.trigger(commander, message=notice, channel=channel, prompt=prompt)
+        await broadcast_status()
+        nudged.append(channel)
+    return nudged
 
 
 async def _handle_new_message(msg: dict):
@@ -921,6 +1248,10 @@ async def _handle_new_message(msg: dict):
     # System messages never trigger routing - prevents infinite callback loops
     if sender == "system":
         return
+
+    if router:
+        router.note_message(channel, sender, timestamp=msg.get("timestamp"))
+        _note_commander_activity(channel, sender, msg.get("timestamp"))
 
     if await _handle_commander_command(sender, text, channel):
         return
@@ -1038,11 +1369,19 @@ async def _handle_new_message(msg: dict):
     raw_targets = router.get_targets(sender, text, channel)
     auto_dispatched = False
     auto_dispatch_plan: dict[str, object] = {"orchestrator": "", "commander": "", "workers": [], "targets": []}
-    if not raw_targets and _should_auto_dispatch(sender, text, msg_type, stripped, known_agents):
+    explicit_all_dispatch = (
+        _auto_dispatch_enabled()
+        and msg_type == "chat"
+        and bool(text.strip())
+        and sender not in known_agents
+        and not stripped.startswith("/")
+        and requests_all_agents(text)
+    )
+    if explicit_all_dispatch or (not raw_targets and _should_auto_dispatch(sender, text, msg_type, stripped, known_agents)):
         auto_dispatch_plan = _select_auto_dispatch_plan(text)
         raw_targets = list(auto_dispatch_plan.get("targets", []))
         commander_status = router.get_commander_status(channel) if router else {}
-        if commander_status.get("locked") and (
+        if not explicit_all_dispatch and commander_status.get("locked") and (
             commander_status.get("active_agents") or commander_status.get("active_agent")
         ):
             active_targets = commander_status.get("active_agents") or [commander_status["active_agent"]]
@@ -1053,6 +1392,7 @@ async def _handle_new_message(msg: dict):
                 "commander": commander,
                 "workers": list(active_targets),
                 "targets": raw_targets,
+                "near_misses": [],
             }
         elif commander_status.get("standby"):
             standby = set(commander_status.get("standby", []))
@@ -1061,10 +1401,23 @@ async def _handle_new_message(msg: dict):
                 target for target in auto_dispatch_plan.get("workers", []) if target not in standby
             ]
             auto_dispatch_plan["targets"] = raw_targets
+            auto_dispatch_plan["near_misses"] = [
+                item
+                for item in auto_dispatch_plan.get("near_misses", [])
+                if item.get("name") not in standby
+            ]
         commander = str(auto_dispatch_plan.get("commander", "") or "")
         workers = [str(worker) for worker in auto_dispatch_plan.get("workers", [])]
-        if router and commander and workers and not commander_status.get("locked"):
+        if router and commander and workers and (explicit_all_dispatch or not commander_status.get("locked")):
             router.set_commander_lock(channel, active_agents=workers, updated_by=commander, reason=text.strip())
+            _record_commander_lane(
+                channel,
+                commander=commander,
+                workers=workers,
+                task=text.strip(),
+                reason=text.strip(),
+                event_type="all-dispatch" if explicit_all_dispatch else "auto-dispatch",
+            )
         auto_dispatched = bool(raw_targets)
         if auto_dispatched and config.get("routing", {}).get("auto_dispatch_announce", True):
             if commander and workers:
@@ -1084,6 +1437,7 @@ async def _handle_new_message(msg: dict):
                     "commander": commander,
                     "workers": workers,
                     "targets": raw_targets,
+                    "near_misses": auto_dispatch_plan.get("near_misses", []),
                 },
             )
     # Resolve base family names to actual registered instances
@@ -1100,9 +1454,11 @@ async def _handle_new_message(msg: dict):
         # Only emit the loop guard notice once per pause
         if not router.is_guard_emitted(channel):
             router.set_guard_emitted(channel)
+            hop_limit = router.effective_max_hops(channel)
+            hop_text = "unlimited" if hop_limit <= 0 else str(hop_limit)
             store.add(
                 "system",
-                f"Loop guard: {router.max_hops} agent-to-agent hops reached. "
+                f"Loop guard: {hop_text} agent-to-agent hops reached. "
                 "Type /continue to resume.",
                 channel=channel
             )
@@ -1113,6 +1469,9 @@ async def _handle_new_message(msg: dict):
     custom_prompt = text if is_hidden_session_request else ""
     auto_dispatch_commander = str(auto_dispatch_plan.get("commander", "") or "")
     auto_dispatch_workers = [str(worker) for worker in auto_dispatch_plan.get("workers", [])]
+    auto_dispatch_near_misses = [
+        item for item in auto_dispatch_plan.get("near_misses", []) if isinstance(item, dict)
+    ]
 
     # Session turn guard: if a session is active on this channel and the sender
     # is an agent, only allow triggering the agent whose turn it is.
@@ -1140,6 +1499,7 @@ async def _handle_new_message(msg: dict):
                     target=target,
                     commander=auto_dispatch_commander,
                     workers=auto_dispatch_workers,
+                    near_misses=auto_dispatch_near_misses,
                 )
             await agents.trigger(target, message=chat_msg, channel=channel, prompt=target_prompt)
 
@@ -1311,6 +1671,7 @@ def _on_registry_change():
         router.update_agents(all_names)
     # Broadcast to WebSocket clients
     if _event_loop:
+        asyncio.run_coroutine_threadsafe(_maybe_restore_commander_lanes(), _event_loop)
         asyncio.run_coroutine_threadsafe(broadcast_agents(), _event_loop)
         asyncio.run_coroutine_threadsafe(broadcast_status(), _event_loop)
 
@@ -1946,6 +2307,14 @@ async def get_status():
         for ch in room_settings.get("channels", ["general"])
     }
     return status
+
+
+@app.get("/api/agents/registered/{agent_name}")
+async def agent_registered(agent_name: str):
+    """Local readiness probe used by launcher scripts."""
+    if registry and registry.is_registered(normalize_profile_id(agent_name)):
+        return JSONResponse({"registered": True})
+    return JSONResponse({"registered": False}, status_code=404)
 
 
 @app.get("/api/settings")
