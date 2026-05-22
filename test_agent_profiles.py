@@ -244,9 +244,11 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profiles["codex-reviewer"]["role"], "Reviewer")
             self.assertEqual(profiles["codex-reviewer"]["launch_model"], "gpt-5.5")
             self.assertIn("code review", profiles["codex-reviewer"]["specialty"].lower())
+            self.assertIn("chat_update_lane_item", profiles["codex-reviewer"]["lane_state_contract"])
             self.assertEqual(profiles["claude-researcher"]["role"], "Researcher")
             self.assertEqual(profiles["claude-researcher"]["launch_model"], "claude-opus-4-7[1m]")
             self.assertIn("research", profiles["claude-researcher"]["trigger_tags"])
+            self.assertIn("chat_update_lane_item", profiles["claude-researcher"]["lane_state_contract"])
 
     def test_default_team_fills_existing_minimal_codex_qa_metadata(self):
         from team_config import apply_default_team_profiles

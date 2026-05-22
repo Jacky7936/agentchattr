@@ -270,6 +270,11 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertIn("Traditional Chinese", _MCP_INSTRUCTIONS)
         self.assertIn("繁體中文", _MCP_INSTRUCTIONS)
 
+    def test_mcp_instructions_require_structured_lane_state_before_final_reply(self):
+        self.assertIn("before the final chat_send reply", _MCP_INSTRUCTIONS)
+        self.assertIn("chat_update_lane_item", _MCP_INSTRUCTIONS)
+        self.assertIn("approved / needs_fix / ready_for_review / blocked", _MCP_INSTRUCTIONS)
+
     def test_profile_context_includes_runtime_policy(self):
         formatted = _format_profile_context(
             {
@@ -294,6 +299,16 @@ class WrapperLaunchArgsTest(unittest.TestCase):
 
         self.assertIn("ROLE: Builder", formatted)
         self.assertIn("RESPONSE LANGUAGE: Always reply in Traditional Chinese (繁體中文).", formatted)
+
+    def test_profile_context_includes_lane_state_contract(self):
+        formatted = _format_profile_context(
+            {
+                "role": "Reviewer",
+                "lane_state_contract": "Before final lane replies, write structured state.",
+            }
+        )
+
+        self.assertIn("LANE STATE CONTRACT: Before final lane replies, write structured state.", formatted)
 
     def test_profile_context_includes_thinking_effort(self):
         formatted = _format_profile_context(

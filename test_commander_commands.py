@@ -455,7 +455,7 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(router.get_commander_status("general")["worker_progress"]["codex-builder"]["state"], "running")
         self.assertEqual(restored.get("general")["progress"]["codex-builder"]["note"], "unit tests running")
 
-    async def test_lane_item_approval_triggers_commander_for_next_backlog_item(self):
+    async def test_lane_item_approval_auto_starts_worker_for_next_backlog_item(self):
         with tempfile.TemporaryDirectory() as tmp:
             ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
             ledger.start_lane(
@@ -495,9 +495,10 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"ok": true', result)
         self.assertEqual(restored.next_backlog_item("design")["text"], "mockups/index.html")
         self.assertEqual(len(agents.triggers), 1)
-        self.assertEqual(agents.triggers[0]["agent_name"], "codex-orchestrator")
+        self.assertEqual(agents.triggers[0]["agent_name"], "codex-module-prototype-designer")
         self.assertIn("mockups/index.html", agents.triggers[0]["prompt"])
-        self.assertIn("auto-advance", agents.triggers[0]["prompt"])
+        self.assertIn("auto-start", agents.triggers[0]["prompt"])
+        self.assertIn("chat_update_lane_item(state='running')", agents.triggers[0]["prompt"])
 
     async def test_commander_watchdog_escalates_repeated_quiet_lanes(self):
         router = Router(

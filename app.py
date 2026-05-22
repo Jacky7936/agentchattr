@@ -850,7 +850,7 @@ def _auto_dispatch_prompt(
             "when many agents are active, assign explicit slices and expected outputs. You may parallel-dispatch "
             "active workers and let active workers coordinate with each other inside the lane. "
             "For repeatable multi-item work, create a structured lane backlog with chat_set_lane_backlog; "
-            "after each approved item, the server will auto-advance you to assign the next pending item. "
+            "after each approved item, the server will auto-start the configured worker on the next pending item. "
             "Prevent loops: use /handoff @agent, /freeze @agent @agent, /standby @agent, "
             "/release, and mention only intended active workers. When the work is complete, "
             "summarize once for the human, release or narrow the lane, and stop."
@@ -865,7 +865,8 @@ def _auto_dispatch_prompt(
             "state, eta_seconds, and a short note. Coordinate only with active lane peers when it is necessary: "
             f"{peer_text}. For structured backlog work, call chat_update_lane_item with state='running' "
             "when you start and state='ready_for_review' when your item is complete. Do not mention or wake "
-            "agents outside the active lane. When your slice is done, report done/blockers once and stop."
+            "agents outside the active lane. Before any final done/blockers chat reply, make sure the backlog "
+            "state has already been updated. When your slice is done, report done/blockers once and stop."
         )
     return (
         f"use mcp to read #{channel} - you were auto-dispatched because your "
@@ -954,8 +955,8 @@ async def _trigger_commander_targets(targets: list[str], sender: str, text: str,
             f"{active_text}. @{target}, respond with your assigned handoff/status. Do not mention "
             "or wake agents outside the active lane unless the orchestrator or human explicitly "
             "hands off. If this is a structured backlog lane, update your item state with "
-            "chat_update_lane_item instead of waiting for a human checkpoint. Coordinate with active lane peers only when useful, then report done or "
-            "blocked once and stop."
+            "chat_update_lane_item before your final chat reply instead of waiting for a human checkpoint. "
+            "Coordinate with active lane peers only when useful, then report done or blocked once and stop."
         )
         await agents.trigger(target, message=f"{sender}: {text}", channel=channel, prompt=prompt)
 

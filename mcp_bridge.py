@@ -138,7 +138,13 @@ _MCP_INSTRUCTIONS = (
     "chat_set_lane_backlog with the ordered item list, worker, and reviewer. Workers MUST call "
     "chat_update_lane_item(state='ready_for_review') when one item is complete. Reviewers MUST call "
     "chat_update_lane_item(state='approved') or state='needs_fix'. The server then auto-triggers the reviewer, "
-    "worker, or commander for the next item, so the lane does not wait for a human between approved items.\n\n"
+    "worker, or commander checkpoint. When an item is approved and a next item exists, the server auto-starts "
+    "the configured worker directly instead of waiting for the orchestrator to reassign it.\n\n"
+    "CRITICAL — Lane State Before Final Replies:\n"
+    "When you are active in a commander lane with a backlog, update machine-readable lane state before the final chat_send reply. "
+    "Use chat_update_lane_item with approved / needs_fix / ready_for_review / blocked as appropriate: "
+    "workers/designers/builders mark ready_for_review, reviewers/QA gates mark approved or needs_fix, and any role marks blocked "
+    "when a commander decision is required. Do not rely on prose such as 'done', '放行', or 'needs polish' as the only handoff signal.\n\n"
     "CRITICAL — Proposing Jobs:\n"
     "Agents must ONLY propose jobs using chat_propose_job when explicitly asked by the user, OR when the request is a clearly 'scoped task'. "
     "A task is scoped if it has: 1) Concrete outcome, 2) Specific boundary, 3) Clear done criteria, 4) Explicit owner/intention, and 5) Appropriate size. "
@@ -695,20 +701,36 @@ def _maybe_trigger_lane_backlog_transition(
                 "chat_update_lane_item(state='ready_for_review') with verification evidence."
             ),
         )
-    elif state == "approved" and commander:
+    elif state == "approved":
         if backlog.get("auto_advance", True) and next_item:
-            _trigger_lane_agent(
-                commander,
-                channel,
-                notice=f"Lane auto-advance in #{channel}: next item is {next_item.get('text')}",
-                prompt=(
-                    f"use mcp to read #{channel}. auto-advance: `{item_text}` was approved. "
-                    f"The next pending backlog item is `{next_item.get('text')}`. "
-                    "Immediately assign the next single-item slice to the active worker; do not wait for the human. "
-                    "Keep the reviewer checkpoint after completion."
-                ),
-            )
-        elif not next_item:
+            triggered_worker = False
+            if worker:
+                triggered_worker = _trigger_lane_agent(
+                    worker,
+                    channel,
+                    notice=f"Lane auto-start in #{channel}: next item is {next_item.get('text')}",
+                    prompt=(
+                        f"use mcp to read #{channel}. auto-start: `{item_text}` was approved. "
+                        f"The next backlog item is `{next_item.get('text')}`. "
+                        "Start this single-item slice now; do not wait for the human or orchestrator. "
+                        "Before editing or testing, call chat_update_lane_item(state='running'). "
+                        "When the item is complete, call chat_update_lane_item(state='ready_for_review') "
+                        "with verification evidence."
+                    ),
+                )
+            if not triggered_worker and commander:
+                _trigger_lane_agent(
+                    commander,
+                    channel,
+                    notice=f"Lane auto-advance fallback in #{channel}: next item is {next_item.get('text')}",
+                    prompt=(
+                        f"use mcp to read #{channel}. auto-advance fallback: `{item_text}` was approved, "
+                        f"but the configured worker `{worker or 'none'}` was not available. "
+                        f"The next pending backlog item is `{next_item.get('text')}`. "
+                        "Reassign or narrow the lane now; do not wait for the human unless a missing decision is required."
+                    ),
+                )
+        elif not next_item and commander:
             _trigger_lane_agent(
                 commander,
                 channel,
@@ -720,11 +742,15 @@ def _maybe_trigger_lane_backlog_transition(
             )
 
 
-def _trigger_lane_agent(agent_name: str, channel: str, *, notice: str, prompt: str) -> None:
+def _trigger_lane_agent(agent_name: str, channel: str, *, notice: str, prompt: str) -> bool:
+    triggered = bool(agents and agents.is_available(agent_name))
     if store:
-        store.add("system", notice, msg_type="system", channel=channel)
-    if agents and agents.is_available(agent_name):
+        text = notice if triggered else f"{notice} (agent unavailable)"
+        store.add("system", text, msg_type="system", channel=channel)
+    if triggered:
         agents.trigger_sync(agent_name, message=notice, channel=channel, prompt=prompt)
+        return True
+    return False
 
 
 def _resolve_attachments(attachments: list[dict]) -> list[dict]:

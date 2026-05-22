@@ -18,6 +18,12 @@ TRADITIONAL_CHINESE_RESPONSE_RULE = (
     "Reply in Traditional Chinese (繁體中文) for all chat responses; keep code, commands, "
     "identifiers, file paths, and quoted source text unchanged."
 )
+STRUCTURED_LANE_STATE_CONTRACT = (
+    "When active in a commander lane with a backlog, update machine-readable lane state before the final "
+    "chat_send reply: call chat_update_lane_item(state='running') when starting an item, "
+    "state='ready_for_review' when worker/designer/builder work is complete, state='approved' or "
+    "state='needs_fix' for reviewer/QA gates, and state='blocked' when a commander decision is required."
+)
 CODEX_GPT_55_LAUNCH_MODEL = "gpt-5.5"
 CLAUDE_OPUS_47_LAUNCH_MODEL = "claude-opus-4-7[1m]"
 
@@ -451,6 +457,7 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
         profile = {
             "runtime_policy": NONBLOCKING_RUNTIME_POLICY,
             "response_language": TRADITIONAL_CHINESE_RESPONSE_RULE,
+            "lane_state_contract": STRUCTURED_LANE_STATE_CONTRACT,
             **profile,
         }
         existing = store.get(profile_id) or {}
@@ -459,7 +466,7 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
         if has_custom_model and not has_custom_launch_model:
             profile = dict(profile)
             profile.pop("launch_model", None)
-        force_fields = ["base", "thinking_effort", "response_language"]
+        force_fields = ["base", "thinking_effort", "response_language", "lane_state_contract"]
         if profile.get("launch_model") and not has_custom_launch_model:
             force_fields.append("launch_model")
         if profile.get("launch_effort"):
