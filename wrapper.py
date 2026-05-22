@@ -664,6 +664,9 @@ def _format_profile_context(profile: dict, *, role_fallback: str = "") -> str:
     thinking_effort = str(profile.get("thinking_effort", "")).strip()
     if thinking_effort:
         parts.append(f"THINKING EFFORT: {thinking_effort}")
+    response_language = str(profile.get("response_language", "")).strip()
+    if response_language:
+        parts.append(f"RESPONSE LANGUAGE: {response_language}")
     specialty = str(profile.get("specialty", "")).strip()
     if specialty:
         parts.append(f"SPECIALTY: {specialty}")

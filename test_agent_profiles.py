@@ -367,6 +367,35 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profiles["claude-reviewer"]["launch_model"], "claude-opus-4-7[1m]")
             self.assertEqual(profiles["claude-reviewer"]["launch_effort"], "max")
 
+    def test_default_team_forces_traditional_chinese_response_rule(self):
+        from team_config import TRADITIONAL_CHINESE_RESPONSE_RULE, apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "codex-qa": {
+                            "base": "codex",
+                            "name": "codex-qa",
+                            "label": "Codex QA",
+                            "role": "QA Engineer",
+                            "response_language": "Reply in English.",
+                        }
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            profiles = AgentProfileStore(profiles_path, AGENTS).get_all()
+            self.assertIn("繁體中文", TRADITIONAL_CHINESE_RESPONSE_RULE)
+            for profile_id, profile in profiles.items():
+                with self.subTest(profile=profile_id):
+                    self.assertEqual(profile.get("response_language"), TRADITIONAL_CHINESE_RESPONSE_RULE)
+
     def test_default_team_removes_retired_profiles(self):
         from team_config import apply_default_team_profiles
 

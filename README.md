@@ -147,6 +147,8 @@ Use fixed profiles when you want the same lineup to come back with the same name
 
 Profiles are stored in `data/agent_profiles.json` as `profile_id -> {base, name, label, role}`. Clicking a status pill to rename an agent or changing its role updates the profile too. The bundled `macos-linux/start_all.sh` uses fixed profiles for `codex-orchestrator`, `codex-planner`, `codex-builder`, `codex-architect`, `codex-qa`, `codex-reviewer`, `codex-module-prototype-designer`, `claude-researcher`, `claude-designer`, and `claude-reviewer`. It waits for each background profile to register before launching the next one; override the 60-second readiness timeout with `AGENTCHATTR_AGENT_REGISTER_TIMEOUT_SECONDS`.
 
+Default team profiles also inject a response-language rule on every wake prompt: agents should reply in Traditional Chinese (`繁體中文`) while keeping code, commands, identifiers, file paths, and quoted source text unchanged. MCP instructions include the same rule for agents that do not use a fixed profile.
+
 ### Agent coordination
 Auto-dispatch routes work through an orchestrator lane when no explicit @mention is present. There is no fixed worker cap when `auto_dispatch_max_targets = 0`; the orchestrator can coordinate every matching specialist, and explicit all-team requests like `@all` or "all agents" run through the orchestrator instead of bypassing lane control. The orchestrator can run active workers in parallel with `/freeze @agent @agent` or `/handoff @agent @agent`, move idle workers to `/standby @agent`, and clear the lane with `/release`. Active workers can coordinate with the orchestrator and other active lane peers, but cannot fan out to standby or unrelated agents.
 

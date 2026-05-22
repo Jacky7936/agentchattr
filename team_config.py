@@ -14,6 +14,10 @@ NONBLOCKING_RUNTIME_POLICY = (
     "Start and operate in non-blocking auto-approval mode; do not wait for human "
     "permission prompts during delegated work."
 )
+TRADITIONAL_CHINESE_RESPONSE_RULE = (
+    "Reply in Traditional Chinese (繁體中文) for all chat responses; keep code, commands, "
+    "identifiers, file paths, and quoted source text unchanged."
+)
 CODEX_GPT_55_LAUNCH_MODEL = "gpt-5.5"
 CLAUDE_OPUS_47_LAUNCH_MODEL = "claude-opus-4-7[1m]"
 
@@ -444,14 +448,18 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
     for profile_id, profile in DEFAULT_TEAM_PROFILES.items():
         if profile["base"] not in agents_config:
             continue
-        profile = {"runtime_policy": NONBLOCKING_RUNTIME_POLICY, **profile}
+        profile = {
+            "runtime_policy": NONBLOCKING_RUNTIME_POLICY,
+            "response_language": TRADITIONAL_CHINESE_RESPONSE_RULE,
+            **profile,
+        }
         existing = store.get(profile_id) or {}
         has_custom_model = bool(existing.get("model") and existing.get("model") != profile.get("model"))
         has_custom_launch_model = bool(has_custom_model and existing.get("launch_model"))
         if has_custom_model and not has_custom_launch_model:
             profile = dict(profile)
             profile.pop("launch_model", None)
-        force_fields = ["base", "thinking_effort"]
+        force_fields = ["base", "thinking_effort", "response_language"]
         if profile.get("launch_model") and not has_custom_launch_model:
             force_fields.append("launch_model")
         if profile.get("launch_effort"):

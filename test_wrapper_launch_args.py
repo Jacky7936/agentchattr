@@ -266,6 +266,10 @@ class WrapperLaunchArgsTest(unittest.TestCase):
     def test_mcp_instructions_include_grok_base_identity(self):
         self.assertIn('base: "grok"', _MCP_INSTRUCTIONS)
 
+    def test_mcp_instructions_include_traditional_chinese_response_rule(self):
+        self.assertIn("Traditional Chinese", _MCP_INSTRUCTIONS)
+        self.assertIn("繁體中文", _MCP_INSTRUCTIONS)
+
     def test_profile_context_includes_runtime_policy(self):
         formatted = _format_profile_context(
             {
@@ -279,6 +283,17 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertIn("MODEL: Claude Code Opus 4.7", formatted)
         self.assertIn("RUNTIME POLICY: Start and operate in non-blocking auto-approval mode.", formatted)
         self.assertEqual(formatted.count("RUNTIME POLICY:"), 1)
+
+    def test_profile_context_includes_response_language_rule(self):
+        formatted = _format_profile_context(
+            {
+                "role": "Builder",
+                "response_language": "Always reply in Traditional Chinese (繁體中文).",
+            }
+        )
+
+        self.assertIn("ROLE: Builder", formatted)
+        self.assertIn("RESPONSE LANGUAGE: Always reply in Traditional Chinese (繁體中文).", formatted)
 
     def test_profile_context_includes_thinking_effort(self):
         formatted = _format_profile_context(
