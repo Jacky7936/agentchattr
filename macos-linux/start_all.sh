@@ -213,6 +213,8 @@ start_agent ".venv/bin/python wrapper.py codex --profile codex-planner --dangero
 wait_for_agent_registration "codex-planner"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-builder --dangerously-bypass-approvals-and-sandbox" "Codex Builder" "data/codex_builder.log"
 wait_for_agent_registration "codex-builder"
+start_agent ".venv/bin/python wrapper.py cursor --profile cursor-builder --model composer-2.5-fast --yolo --sandbox disabled --approve-mcps" "Cursor Builder" "data/cursor_builder.log"
+wait_for_agent_registration "cursor-builder"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-architect --dangerously-bypass-approvals-and-sandbox" "Codex Architect" "data/codex_architect.log"
 wait_for_agent_registration "codex-architect"
 start_agent ".venv/bin/python wrapper.py codex --profile codex-qa --dangerously-bypass-approvals-and-sandbox" "Codex QA" "data/codex_qa.log"

@@ -9,6 +9,7 @@ from registry import RuntimeRegistry
 
 AGENTS = {
     "codex": {"label": "Codex", "color": "#10a37f"},
+    "cursor": {"label": "Cursor", "color": "#f59e0b"},
     "claude": {"label": "Claude", "color": "#da7756"},
     "gemini": {"label": "Gemini", "color": "#4285f4"},
     "antigravity": {"label": "Antigravity", "color": "#7c3aed"},
@@ -204,6 +205,7 @@ class AgentProfileStoreTest(unittest.TestCase):
             profiles = store.get_all()
             self.assertIn("codex-orchestrator", profiles)
             self.assertIn("codex-module-prototype-designer", profiles)
+            self.assertIn("cursor-builder", profiles)
             self.assertIn("codex-qa", profiles)
             self.assertNotIn("codex-architecture-reviewer", profiles)
             self.assertIn("codex-planner", profiles)
@@ -236,6 +238,12 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profiles["codex-module-prototype-designer"]["role"], "Module Prototype Designer")
             self.assertIn("UI原型", profiles["codex-module-prototype-designer"]["trigger_tags"])
             self.assertIn("prototype", profiles["codex-module-prototype-designer"]["trigger_tags"])
+            self.assertEqual(profiles["cursor-builder"]["base"], "cursor")
+            self.assertEqual(profiles["cursor-builder"]["role"], "Builder")
+            self.assertEqual(profiles["cursor-builder"]["model"], "Cursor Composer 2.5 Fast")
+            self.assertEqual(profiles["cursor-builder"]["launch_model"], "composer-2.5-fast")
+            self.assertIn("--yolo", profiles["cursor-builder"]["runtime_policy"])
+            self.assertIn("cursor", profiles["cursor-builder"]["trigger_tags"])
             self.assertEqual(profiles["claude-reviewer"]["role"], "My Custom Reviewer")
             self.assertEqual(profiles["claude-reviewer"]["model"], "Custom Claude Model")
             self.assertNotIn("launch_model", profiles["claude-reviewer"])
@@ -309,6 +317,8 @@ class AgentProfileStoreTest(unittest.TestCase):
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-planner"]["thinking_effort"], "xhigh")
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-qa"]["thinking_effort"], "high")
         self.assertEqual(DEFAULT_TEAM_PROFILES["codex-module-prototype-designer"]["thinking_effort"], "high")
+        self.assertEqual(DEFAULT_TEAM_PROFILES["cursor-builder"]["thinking_effort"], "fast")
+        self.assertEqual(DEFAULT_TEAM_PROFILES["cursor-builder"]["launch_model"], "composer-2.5-fast")
 
     def test_default_team_updates_existing_thinking_effort_policy(self):
         from team_config import apply_default_team_profiles
@@ -365,6 +375,8 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertEqual(profiles["codex-planner"]["thinking_effort"], "xhigh")
             self.assertEqual(profiles["codex-qa"]["thinking_effort"], "high")
             self.assertEqual(profiles["codex-module-prototype-designer"]["thinking_effort"], "high")
+            self.assertEqual(profiles["cursor-builder"]["thinking_effort"], "fast")
+            self.assertEqual(profiles["cursor-builder"]["launch_model"], "composer-2.5-fast")
             self.assertEqual(profiles["claude-reviewer"]["thinking_effort"], "max")
             self.assertEqual(profiles["claude-reviewer"]["launch_model"], "claude-opus-4-7[1m]")
             self.assertEqual(profiles["claude-reviewer"]["launch_effort"], "max")
@@ -499,6 +511,7 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertNotIn("claude-challenger", profiles)
             self.assertEqual(profiles["codex-qa"]["model"], "Codex GPT-5.5")
             self.assertEqual(profiles["codex-module-prototype-designer"]["model"], "Codex GPT-5.5")
+            self.assertEqual(profiles["cursor-builder"]["model"], "Cursor Composer 2.5 Fast")
             self.assertNotIn("codex-spike-prototyper", profiles)
 
     def test_default_team_syncs_roles_file_when_retired_profiles_are_replaced(self):
@@ -541,6 +554,7 @@ class AgentProfileStoreTest(unittest.TestCase):
             self.assertNotIn("claude-challenger", roles)
             self.assertEqual(roles["codex-qa"], "QA Engineer")
             self.assertEqual(roles["codex-module-prototype-designer"], "Module Prototype Designer")
+            self.assertEqual(roles["cursor-builder"], "Builder")
             self.assertNotIn("codex-spike-prototyper", roles)
 
     def test_default_team_migrates_legacy_orchestrator_and_architect_metadata(self):

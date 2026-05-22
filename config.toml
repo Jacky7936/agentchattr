@@ -23,6 +23,17 @@ cwd = "/Users/jackyho/GitHub/dacitech-temple-erp"
 color = "#10a37f"
 label = "Codex"
 
+[agents.cursor]
+command = "cursor-agent"
+cwd = "/Users/jackyho/GitHub/dacitech-temple-erp"
+color = "#f59e0b"
+label = "Cursor"
+mcp_inject = "settings_file"
+mcp_settings_path = "~/.cursor/mcp.json"
+mcp_transport = "http"
+mcp_http_key = "url"
+inject_delay = 1.0
+
 [agents.gemini]
 command = "gemini"
 cwd = ".."
@@ -118,6 +129,7 @@ max_size_mb = 10
 
 # --- MCP injection modes ---
 # By default, claude/codex/antigravity/grok/gemini/kimi/kilo use built-in MCP config injection.
+# Cursor uses an explicit ~/.cursor/mcp.json settings_file injector above.
 # For other CLI agents, set mcp_inject to tell the wrapper how to inject auth:
 #
 # mcp_inject modes:

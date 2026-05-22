@@ -489,6 +489,8 @@ def _profile_launch_args(agent: str, profile: dict, forwarded_args: list[str]) -
         return _codex_profile_launch_args(profile, forwarded_args)
     if agent == "claude":
         return _claude_profile_launch_args(profile, forwarded_args)
+    if agent == "cursor":
+        return _cursor_profile_launch_args(profile, forwarded_args)
     return []
 
 
@@ -520,6 +522,15 @@ def _claude_profile_launch_args(profile: dict, forwarded_args: list[str]) -> lis
     return args
 
 
+def _cursor_profile_launch_args(profile: dict, forwarded_args: list[str]) -> list[str]:
+    args: list[str] = []
+    model = _resolve_profile_launch_model("cursor", profile)
+
+    if model and not _has_option(forwarded_args, "--model"):
+        args.extend(["--model", model])
+    return args
+
+
 def _resolve_profile_launch_model(agent: str, profile: dict) -> str:
     raw = str(profile.get("launch_model") or profile.get("model") or "").strip()
     if not raw:
@@ -544,6 +555,18 @@ def _resolve_profile_launch_model(agent: str, profile: dict) -> str:
             "claude sonnet 4.6": "claude-sonnet-4-6",
             "sonnet 4.6": "claude-sonnet-4-6",
             "sonnet": "sonnet",
+        },
+        "cursor": {
+            "cursor composer 2.5 fast": "composer-2.5-fast",
+            "cursor composer2.5 fast": "composer-2.5-fast",
+            "composer 2.5 fast": "composer-2.5-fast",
+            "composer2.5 fast": "composer-2.5-fast",
+            "composer-2.5-fast": "composer-2.5-fast",
+            "compressor 2.5 fast": "composer-2.5-fast",
+            "compressor2.5 fast": "composer-2.5-fast",
+            "cursor composer 2.5": "composer-2.5",
+            "composer 2.5": "composer-2.5",
+            "composer-2.5": "composer-2.5",
         },
     }
     return aliases.get(agent, {}).get(normalized, raw)

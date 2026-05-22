@@ -47,6 +47,36 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertEqual(settings_path.name, "claude-reviewer-mcp.json")
         return launch_args, inject_env
 
+    def _cursor_launch_args(self, extra_args, profile=None, agent_cfg=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            home.mkdir()
+            cfg = agent_cfg or {
+                "mcp_inject": "settings_file",
+                "mcp_settings_path": "~/.cursor/mcp.json",
+                "mcp_transport": "http",
+                "mcp_http_key": "url",
+            }
+            with patch.dict(os.environ, {"HOME": str(home)}):
+                launch_args, launch_env, inject_env, settings_path = _build_provider_launch(
+                    agent="cursor",
+                    agent_cfg=cfg,
+                    instance_name="cursor-builder",
+                    data_dir=Path(tmp) / "data",
+                    proxy_url=None,
+                    extra_args=extra_args,
+                    env={},
+                    token="test-token",
+                    mcp_cfg={"http_port": 8123},
+                    project_dir=Path(tmp) / "project",
+                    profile=profile,
+                )
+                settings_data = json.loads(settings_path.read_text("utf-8")) if settings_path else {}
+
+        self.assertEqual(launch_env, {})
+        self.assertEqual(inject_env, {})
+        return launch_args, settings_path, settings_data
+
     def test_codex_bypass_flag_is_forwarded_without_delimiter(self):
         args = self._codex_launch_args(["--dangerously-bypass-approvals-and-sandbox"])
 
@@ -126,6 +156,51 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         )
 
         self.assertEqual(args[args.index("--effort") + 1], "max")
+
+    def test_cursor_profile_model_is_launch_arg(self):
+        args, _, _ = self._cursor_launch_args(
+            ["--yolo", "--sandbox", "disabled", "--approve-mcps"],
+            profile={
+                "model": "Cursor Composer 2.5 Fast",
+            },
+        )
+
+        self.assertIn("--model", args)
+        self.assertEqual(args[args.index("--model") + 1], "composer-2.5-fast")
+        self.assertLess(args.index("--model"), args.index("--yolo"))
+        self.assertIn("--sandbox", args)
+        self.assertIn("disabled", args)
+        self.assertIn("--approve-mcps", args)
+
+    def test_cursor_profile_does_not_override_explicit_forwarded_model_args(self):
+        args, _, _ = self._cursor_launch_args(
+            ["--model", "composer-2.5", "--yolo"],
+            profile={
+                "model": "Cursor Composer 2.5 Fast",
+            },
+        )
+
+        self.assertEqual(args.count("--model"), 1)
+        self.assertEqual(args[args.index("--model") + 1], "composer-2.5")
+
+    def test_cursor_writes_global_mcp_config_with_standard_url_key(self):
+        args, settings_path, data = self._cursor_launch_args(
+            ["--model", "composer-2.5-fast", "--yolo"],
+            profile={},
+        )
+
+        self.assertEqual(args, ["--model", "composer-2.5-fast", "--yolo"])
+        self.assertIsNotNone(settings_path)
+        self.assertEqual(
+            data["mcpServers"]["agentchattr"],
+            {
+                "type": "http",
+                "url": "http://127.0.0.1:8123/mcp",
+                "trust": True,
+                "headers": {"Authorization": "Bearer test-token"},
+            },
+        )
+        self.assertNotIn("httpUrl", data["mcpServers"]["agentchattr"])
 
     def test_antigravity_writes_managed_plugin_with_bearer_mcp_config(self):
         with tempfile.TemporaryDirectory() as tmp:

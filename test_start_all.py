@@ -10,6 +10,7 @@ class StartAllTeamLaunchTest(unittest.TestCase):
             "codex-orchestrator": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-planner": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-builder": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
+            "cursor-builder": ("wrapper.py cursor", "--yolo"),
             "codex-architect": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-qa": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
             "codex-module-prototype-designer": ("wrapper.py codex", "--dangerously-bypass-approvals-and-sandbox"),
@@ -24,6 +25,11 @@ class StartAllTeamLaunchTest(unittest.TestCase):
                 command = self._launch_command(script, profile)
                 self.assertIn(provider, command)
                 self.assertIn(flag, command)
+
+        cursor_command = self._launch_command(script, "cursor-builder")
+        self.assertIn("--model composer-2.5-fast", cursor_command)
+        self.assertIn("--sandbox disabled", cursor_command)
+        self.assertIn("--approve-mcps", cursor_command)
 
         self.assertIn('AGENT_REGISTER_TIMEOUT_SECONDS="${AGENTCHATTR_AGENT_REGISTER_TIMEOUT_SECONDS:-60}"', script)
         self.assertIn("wait_for_agent_registration()", script)

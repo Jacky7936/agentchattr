@@ -274,6 +274,27 @@ class DispatcherSelectionTests(unittest.TestCase):
 
         self.assertIn("codex-module-prototype-designer", targets)
 
+    def test_explicit_cursor_builder_request_selects_cursor_builder(self):
+        targets = select_dispatch_targets(
+            "please use cursor builder to refactor lint failures",
+            DEFAULT_TEAM_PROFILES,
+            active_names=list(DEFAULT_TEAM_PROFILES),
+            max_targets=3,
+        )
+
+        self.assertEqual(targets, ["cursor-builder"])
+
+    def test_generic_build_task_does_not_duplicate_builder_with_cursor(self):
+        targets = select_dispatch_targets(
+            "fix failing tests in the frontend",
+            DEFAULT_TEAM_PROFILES,
+            active_names=list(DEFAULT_TEAM_PROFILES),
+            max_targets=4,
+        )
+
+        self.assertIn("codex-builder", targets)
+        self.assertNotIn("cursor-builder", targets)
+
     def test_generic_prototype_rolls_into_module_prototype_designer(self):
         targets = select_dispatch_targets(
             "make a quick prototype spike demo",

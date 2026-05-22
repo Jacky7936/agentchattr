@@ -26,6 +26,12 @@ STRUCTURED_LANE_STATE_CONTRACT = (
 )
 CODEX_GPT_55_LAUNCH_MODEL = "gpt-5.5"
 CLAUDE_OPUS_47_LAUNCH_MODEL = "claude-opus-4-7[1m]"
+CURSOR_COMPOSER_25_FAST_LAUNCH_MODEL = "composer-2.5-fast"
+CURSOR_BUILDER_RUNTIME_POLICY = (
+    NONBLOCKING_RUNTIME_POLICY
+    + " Cursor Builder is launched with `--yolo`, `--sandbox disabled`, and "
+    "`--approve-mcps` so delegated build work is not blocked by command, sandbox, or MCP approval prompts."
+)
 
 LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS = (
     "architecture",
@@ -37,6 +43,29 @@ LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS = (
     "data flow",
     "架構",
     "資料流",
+)
+LEGACY_CURSOR_BUILDER_TRIGGER_TAGS = (
+    "cursor",
+    "cursor builder",
+    "composer",
+    "composer 2.5",
+    "composer2.5",
+    "compressor 2.5",
+    "compressor2.5",
+    "routine implementation",
+    "refactor",
+    "lint",
+    "ci fix",
+    "test fix",
+    "frontend",
+    "backend",
+    "implement",
+    "build",
+    "fix",
+    "code",
+    "實作",
+    "修正",
+    "重構",
 )
 LEGACY_CODEX_DISPATCHER_SPECIALTY = (
     "Classify incoming tasks and dispatch the smallest useful set of agents by role and specialty."
@@ -77,6 +106,7 @@ LEGACY_FIELD_MIGRATIONS = {
         "output_contract": (LEGACY_CODEX_DISPATCHER_OUTPUT_CONTRACT, PREVIOUS_CODEX_ORCHESTRATOR_OUTPUT_CONTRACT),
     },
     "codex-architect": {"trigger_tags": (LEGACY_CODEX_ARCHITECT_TRIGGER_TAGS,)},
+    "cursor-builder": {"trigger_tags": (LEGACY_CURSOR_BUILDER_TRIGGER_TAGS,)},
 }
 
 RETIRED_DEFAULT_PROFILE_IDS = (
@@ -124,6 +154,7 @@ DEFAULT_TEAM_PROFILES = {
             "@codex-planner: WHAT/WHEN ownership: fuzzy requests, requirements, scope, staged plans, milestones, handoff order, and next decisions.",
             "@codex-architect: HOW-boundary ownership: architecture, data flow, API boundaries, schema, migrations, permissions, feasibility, and systemic tradeoffs.",
             "@codex-builder: production implementation, repo-native fixes, refactors, focused tests, and verified code changes.",
+            "@cursor-builder: Cursor Composer 2.5 Fast implementation worker for routine features, refactors, lint/test fixes, and CI repair when high throughput is useful.",
             "@codex-qa: bug reproduction, regression checks, browser or E2E validation, acceptance checks, and release risk.",
             "@codex-reviewer: repo-aware code review for regressions, missing tests, maintainability, and implementation risk.",
             "@codex-module-prototype-designer: inspectable module UI prototypes for flows, states, permissions, and direction validation before production UI work.",
@@ -134,7 +165,7 @@ DEFAULT_TEAM_PROFILES = {
         "routing_guidelines": [
             "Fuzzy product request or unclear scope: ask @codex-planner first; add @claude-researcher only when evidence, legacy context, or documents are needed.",
             "Architecture, data model, API, migration, permissions, or system-boundary question: ask @codex-architect before implementation.",
-            "Straightforward build, fix, refactor, or test task: assign @codex-builder; add @codex-qa for verification and @codex-reviewer for review when the change has user-facing or shared-code risk.",
+            "Straightforward build, fix, refactor, or test task: assign @codex-builder for high-risk repo-native changes; use @cursor-builder for routine implementation, refactors, lint/test fixes, CI repair, or explicit Cursor requests; add @codex-qa for verification and @codex-reviewer for review when the change has user-facing or shared-code risk.",
             "Bug or regression: ask @codex-qa to reproduce and define checks, then @codex-builder to fix, then @codex-reviewer or @claude-reviewer depending on risk.",
             "UI/UX direction, flow, copy, or visual hierarchy: ask @claude-designer; use @codex-module-prototype-designer when a clickable or inspectable prototype is useful; assign @codex-builder only after direction is clear.",
             "Large document, legacy codebase, comparison, or evidence task: ask @claude-researcher first, then hand findings to @codex-planner or @codex-architect as needed.",
@@ -241,6 +272,45 @@ DEFAULT_TEAM_PROFILES = {
         "responsibilities": ["Make scoped code changes.", "Run verification before reporting completion."],
         "avoid": ["Do not skip tests for risky changes."],
         "output_contract": "Report files changed, verification run, and remaining risks. If QA or review is already active in the commander lane, hand off with exact checks instead of waking unrelated agents.",
+    },
+    "cursor-builder": {
+        "base": "cursor",
+        "name": "cursor-builder",
+        "label": "Cursor Builder",
+        "role": "Builder",
+        "model": "Cursor Composer 2.5 Fast",
+        "launch_model": CURSOR_COMPOSER_25_FAST_LAUNCH_MODEL,
+        "thinking_effort": "fast",
+        "launch_effort": "fast",
+        "runtime_policy": CURSOR_BUILDER_RUNTIME_POLICY,
+        "specialty": "Use Cursor Composer 2.5 Fast for high-throughput implementation: routine features, multi-file refactors, lint/test fixes, CI repair, and frontend/backend code changes that do not require commander-level judgment.",
+        "trigger_tags": [
+            "cursor",
+            "cursor builder",
+            "composer",
+            "composer 2.5",
+            "composer2.5",
+            "compressor 2.5",
+            "compressor2.5",
+            "routine implementation",
+            "refactor",
+            "lint",
+            "ci fix",
+            "test fix",
+            "重構",
+        ],
+        "rank": 2,
+        "responsibilities": [
+            "Implement scoped code changes quickly while following the active repo rules and commander lane state.",
+            "Use the full-permission Cursor launch mode for command execution, file edits, MCP access, and sandbox-free local work.",
+            "Run focused tests, lint, or reproduction commands when they are available and relevant.",
+            "Hand off high-risk architecture, data-loss, permission, or product judgment questions to @codex-architect, @codex-reviewer, or @claude-reviewer.",
+        ],
+        "avoid": [
+            "Do not replace @codex-orchestrator, @codex-planner, @codex-architect, or high-risk review roles.",
+            "Do not broaden a routine build task into large product or architecture decisions without commander approval.",
+        ],
+        "output_contract": "Report files changed, commands run, tests or checks passed or failed, and any risk that needs Codex/Claude review.",
     },
     "codex-qa": {
         "base": "codex",
@@ -475,6 +545,8 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
             existing_value = existing.get(field)
             if any(_legacy_value_matches(existing_value, legacy_value) for legacy_value in legacy_values):
                 force_fields.append(field)
+        if profile_id == "codex-orchestrator" and not _profile_mentions(existing, "cursor-builder"):
+            force_fields.extend(["team_roster", "routing_guidelines"])
         updated = store.upsert_profile(profile_id, profile, preserve_existing=True, force_fields=force_fields)
         if updated:
             seeded[profile_id] = updated
@@ -494,6 +566,15 @@ def _legacy_value_matches(existing_value, legacy_value) -> bool:
     if isinstance(legacy_value, list):
         legacy_value = tuple(legacy_value)
     return existing_value == legacy_value
+
+
+def _profile_mentions(profile: dict, text: str) -> bool:
+    needle = text.lower()
+    values = []
+    for key in ("team_roster", "routing_guidelines", "responsibilities", "specialty"):
+        raw = profile.get(key)
+        values.extend(raw if isinstance(raw, list) else [raw])
+    return any(needle in str(value).lower() for value in values if value is not None)
 
 
 def _seed_roles_file(path: Path, profiles: dict[str, dict], *, retired_profile_ids: tuple[str, ...] = ()) -> None:
