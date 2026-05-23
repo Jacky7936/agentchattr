@@ -339,6 +339,9 @@ function switchChannel(name) {
     window.channelUnread[name] = 0;
     localStorage.setItem('agentchattr-channel', name);
     filterMessagesByChannel();
+    if (window.updateThinkingIndicators) {
+        window.updateThinkingIndicators(window.latestStatusData || {});
+    }
     renderChannelTabs();
     renderMobileChannelList();
     Store.set('activeChannel', name);

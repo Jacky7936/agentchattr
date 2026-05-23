@@ -30,6 +30,7 @@ commander_ledger = None  # set by run.py — CommanderLedger instance
 _presence: dict[str, float] = {}
 _activity: dict[str, bool] = {}   # True = screen changed on last poll
 _activity_ts: dict[str, float] = {}  # timestamp of last active=True heartbeat
+_activity_channel: dict[str, str] = {}  # channel tied to the current active lease
 ACTIVITY_TIMEOUT = 8  # auto-expire activity after 8s without a fresh active=True
 _presence_lock = threading.Lock()   # guards both _presence and _activity
 _renamed_from: set[str] = set()    # old names from renames — suppress leave messages
@@ -901,6 +902,8 @@ def migrate_identity(old_name: str, new_name: str):
             _activity[new_name] = _activity.pop(old_name)
         if old_name in _activity_ts:
             _activity_ts[new_name] = _activity_ts.pop(old_name)
+        if old_name in _activity_channel:
+            _activity_channel[new_name] = _activity_channel.pop(old_name)
         _renamed_from.add(old_name)  # suppress leave message for old name
     with _cursors_lock:
         if old_name in _cursors:
@@ -917,6 +920,7 @@ def purge_identity(name: str):
         _presence.pop(name, None)
         _activity.pop(name, None)
         _activity_ts.pop(name, None)
+        _activity_channel.pop(name, None)
     with _cursors_lock:
         _cursors.pop(name, None)
     if name in _roles:
@@ -1138,11 +1142,17 @@ def is_online(name: str) -> bool:
         return name in _presence and now - _presence.get(name, 0) < PRESENCE_TIMEOUT
 
 
-def set_active(name: str, active: bool):
+def set_active(name: str, active: bool, channel: str = ""):
     with _presence_lock:
         _activity[name] = active
         if active:
-            _activity_ts[name] = __import__("time").time()
+            _activity_ts[name] = time.time()
+            if channel:
+                _activity_channel[name] = channel
+            else:
+                _activity_channel.pop(name, None)
+        else:
+            _activity_channel.pop(name, None)
 
 
 def is_active(name: str) -> bool:
@@ -1154,8 +1164,17 @@ def is_active(name: str) -> bool:
         ts = _activity_ts.get(name, 0)
         if _time.time() - ts > ACTIVITY_TIMEOUT:
             _activity[name] = False
+            _activity_channel.pop(name, None)
             return False
         return True
+
+
+def get_activity_channel(name: str) -> str:
+    """Return the channel for the current active lease, if it is still live."""
+    if not is_active(name):
+        return ""
+    with _presence_lock:
+        return _activity_channel.get(name, "")
 
 
 def chat_rules(

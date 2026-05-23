@@ -760,7 +760,7 @@ def _report_rule_sync(server_port: int, agent_name: str, epoch: int, token: str 
 
 def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = False, trigger_flag=None,
                    server_port: int = 8300, agent_name: str = "", get_token_fn=None,
-                   refresh_interval: int = 10):
+                   refresh_interval: int = 10, trigger_channel=None):
     """Poll queue file and inject an MCP read task when triggered."""
     first_mention = True
     last_rules_epoch = 0  # 0 = unknown/cold start — will inject on first trigger
@@ -791,6 +791,8 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                     # Signal activity BEFORE injecting — covers the thinking phase
                     if trigger_flag is not None:
                         trigger_flag[0] = True
+                    if trigger_channel is not None:
+                        trigger_channel[0] = str(channel or "general")
                     time.sleep(0.5)
 
                     # Check if this is a job/activity-scoped trigger
@@ -1101,6 +1103,7 @@ def main():
     _watcher_thread = None
     _is_multi_instance = registration.get("slot", 1) > 1
     _trigger_flag = [False]  # shared: queue watcher sets True, activity checker reads
+    _trigger_channel = [""]  # channel for the current trigger-driven thinking bubble
     _refresh_interval = 10  # default; overridden per-trigger by server settings
 
     def start_watcher(inject_fn):
@@ -1111,7 +1114,8 @@ def main():
             args=(get_identity, inject_fn),
             kwargs={"is_multi_instance": _is_multi_instance, "trigger_flag": _trigger_flag,
                     "server_port": server_port, "agent_name": assigned_name,
-                    "get_token_fn": get_token, "refresh_interval": _refresh_interval},
+                    "get_token_fn": get_token, "refresh_interval": _refresh_interval,
+                    "trigger_channel": _trigger_channel},
             daemon=True,
         )
         _watcher_thread.start()
@@ -1126,7 +1130,8 @@ def main():
                     args=(get_identity, _watcher_inject_fn),
                     kwargs={"is_multi_instance": _is_multi_instance, "trigger_flag": _trigger_flag,
                             "server_port": server_port, "agent_name": assigned_name,
-                            "get_token_fn": get_token, "refresh_interval": _refresh_interval},
+                            "get_token_fn": get_token, "refresh_interval": _refresh_interval,
+                            "trigger_channel": _trigger_channel},
                     daemon=True,
                 )
                 _watcher_thread.start()
@@ -1144,6 +1149,7 @@ def main():
     def _activity_monitor():
         last_active = None
         last_report_time = 0
+        last_report_channel = ""
         REPORT_INTERVAL = 3  # re-send state every 3s while active (keeps server lease fresh)
         while True:
             time.sleep(1)
@@ -1155,8 +1161,10 @@ def main():
                 # Send on state change, periodically while active (refresh lease),
                 # or periodically while idle (keep presence alive)
                 IDLE_REPORT_INTERVAL = 8  # keep-alive while idle
+                current_channel = _trigger_channel[0] if active else ""
                 should_send = (
                     active != last_active
+                    or current_channel != last_report_channel
                     or (active and now - last_report_time >= REPORT_INTERVAL)
                     or (not active and now - last_report_time >= IDLE_REPORT_INTERVAL)
                 )
@@ -1164,7 +1172,10 @@ def main():
                     current_name, _ = get_identity()
                     current_token = get_token()
                     url = f"http://127.0.0.1:{server_port}/api/heartbeat/{current_name}"
-                    body = json.dumps({"active": active}).encode()
+                    payload = {"active": active}
+                    if current_channel:
+                        payload["channel"] = current_channel
+                    body = json.dumps(payload).encode()
                     req = urllib.request.Request(
                         url,
                         method="POST",
@@ -1174,7 +1185,10 @@ def main():
                     resp = urllib.request.urlopen(req, timeout=5)
                     resp_code = resp.getcode()
                     last_active = active
+                    last_report_channel = current_channel
                     last_report_time = now
+                    if not active:
+                        _trigger_channel[0] = ""
             except Exception:
                 pass
 

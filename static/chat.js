@@ -20,6 +20,8 @@ let lastMessageDate = null;  // track date for dividers (general channel)
 let lastMessageDates = {};  // { channel: dateString } for per-channel dividers
 let soundEnabled = false;  // suppress sounds during initial history load
 let activeChannel = localStorage.getItem('agentchattr-channel') || 'general';
+let latestStatusData = {};  // latest /api/status payload, used by channel-aware UI states
+const manualTypingAgents = new Set();  // legacy typing event compatibility
 let channelList = ['general'];
 let channelUnread = {};  // { channelName: count }
 let agentHats = {};  // { agent_name: svg_string }
@@ -31,6 +33,7 @@ let schedulesList = [];  // array of schedule objects from server
 // Using defineProperty so live values are always returned.
 Object.defineProperty(window, 'SESSION_TOKEN', { get() { return SESSION_TOKEN; } });
 Object.defineProperty(window, 'activeChannel', { get() { return activeChannel; } });
+Object.defineProperty(window, 'latestStatusData', { get() { return latestStatusData; } });
 Object.defineProperty(window, 'channelList', { get() { return channelList; }, set(v) { channelList = v; } });
 Object.defineProperty(window, 'channelUnread', { get() { return channelUnread; }, set(v) { channelUnread = v; } });
 window._setActiveChannel = function(v) { activeChannel = v; };
@@ -1844,8 +1847,9 @@ const _ROLE_EMOJI = {
 };
 
 function updateStatus(data) {
-    for (const [name, info] of Object.entries(data)) {
-        if (name === 'paused') continue;
+    latestStatusData = data || {};
+    for (const [name, info] of Object.entries(latestStatusData)) {
+        if (name === 'paused' || name === 'commander' || !info) continue;
         const pill = document.getElementById(`status-${name}`);
         if (!pill) continue;
         const dot = pill.querySelector('.status-dot');
@@ -1886,18 +1890,71 @@ function updateStatus(data) {
             if (roleEl) roleEl.textContent = info.role || agentConfig[name]?.base || name;
         }
     }
+    updateThinkingIndicators(data);
 }
 
 function updateTyping(agent, active) {
-    const indicator = document.getElementById('typing-indicator');
+    if (!agent) return;
     if (active) {
-        indicator.querySelector('.typing-name').textContent = agent;
-        indicator.classList.remove('hidden');
-        if (autoScroll) scrollToBottom();
+        manualTypingAgents.add(agent);
     } else {
-        indicator.classList.add('hidden');
+        manualTypingAgents.delete(agent);
     }
+    renderThinkingIndicators(getThinkingAgentNames(latestStatusData));
 }
+
+function updateThinkingIndicators(data) {
+    latestStatusData = data || latestStatusData || {};
+    renderThinkingIndicators(getThinkingAgentNames(latestStatusData));
+}
+
+function getThinkingAgentNames(data) {
+    const names = [];
+    const seen = new Set();
+    const addName = (name) => {
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        names.push(name);
+    };
+
+    for (const [name, info] of Object.entries(data || {})) {
+        if (name === 'paused' || name === 'commander' || !info) continue;
+        if (!info.available || !info.busy) continue;
+        const busyChannel = String(info.busy_channel || '');
+        if (busyChannel && busyChannel !== activeChannel) continue;
+        addName(name);
+    }
+
+    for (const name of manualTypingAgents) addName(name);
+    return names;
+}
+
+function renderThinkingIndicators(agentNames) {
+    const indicator = document.getElementById('typing-indicator');
+    if (!indicator) return;
+    if (!agentNames || agentNames.length === 0) {
+        indicator.innerHTML = '';
+        indicator.classList.add('hidden');
+        return;
+    }
+
+    indicator.innerHTML = agentNames.map(agent => {
+        const agentColor = getColor(agent);
+        const agentKey = (resolveAgent(String(agent).toLowerCase()) || agent).toLowerCase();
+        const agentCssKey = agentKey.replace(/[^a-z0-9-]/g, '');
+        const hatSvg = agentHats[agentKey] || '';
+        const hatHtml = hatSvg ? `<div class="hat-overlay" data-agent="${escapeHtml(agentKey)}">${hatSvg}</div>` : '';
+        const avatarHtml = `<div class="avatar-wrap" data-agent="${escapeHtml(agentKey)}"><div class="avatar agent-${agentCssKey}" style="background-color: ${agentColor}">${getAvatarSvg(agent)}</div>${hatHtml}</div>`;
+        const displayName = getAgentDisplayName(agent);
+        const role = getAgentRoleFor(agent);
+        const roleHtml = role ? `<span class="thinking-role">${escapeHtml(role)}</span>` : '';
+        return `<div class="typing-message message other" data-agent="${escapeHtml(agent)}">${avatarHtml}<div class="chat-bubble typing-bubble" style="--bubble-color: ${agentColor}"><div class="bubble-header"><span class="msg-sender" data-sender="${escapeHtml(agent)}" style="color: ${agentColor}">${escapeHtml(displayName)}</span>${roleHtml}</div><div class="msg-text thinking-label"><span>is thinking</span><span class="typing-dots" aria-hidden="true"><span></span><span></span><span></span></span></div></div></div>`;
+    }).join('');
+    indicator.classList.remove('hidden');
+    if (autoScroll) scrollToBottom();
+}
+
+window.updateThinkingIndicators = updateThinkingIndicators;
 
 // --- Settings ---
 

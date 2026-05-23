@@ -16,18 +16,20 @@ class AgentTrigger:
         return self._registry.is_registered(name)
 
     def get_status(self) -> dict:
-        from mcp_bridge import is_online, is_active, get_role
+        from mcp_bridge import is_online, is_active, get_activity_channel, get_role
         instances = self._registry.get_all()
-        return {
-            name: {
+        status = {}
+        for name, info in instances.items():
+            busy = is_active(name)
+            status[name] = {
                 "available": is_online(name),
-                "busy": is_active(name),
+                "busy": busy,
+                "busy_channel": get_activity_channel(name) if busy else "",
                 "label": info["label"],
                 "color": info["color"],
                 "role": get_role(name),
             }
-            for name, info in instances.items()
-        }
+        return status
 
     async def trigger(self, agent_name: str, message: str = "", channel: str = "general",
                       job_id: int | None = None, **kwargs):

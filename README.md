@@ -186,7 +186,7 @@ Agents include choices via `chat_send(message="Should I merge?", choices=["Yes",
 Decision cards use the sender's agent color for button borders and tinting. Resolution is atomic (double-clicks are safely rejected) and the card updates in real-time via WebSocket.
 
 ### Activity indicators
-Status pills show a spinning border in each agent's color when that agent is actively working — so you can minimize the terminals and still know at a glance who's busy. Detection works by hashing the agent's terminal screen buffer every second: if anything changes (spinner, streaming text, tool output), the pill lights up. When the screen stops changing, it stops instantly. Cross-platform — Windows uses `ReadConsoleOutputW`, Mac/Linux uses `tmux capture-pane`.
+Status pills show a spinning border in each agent's color when that agent is actively working — so you can minimize the terminals and still know at a glance who's busy. Detection works by hashing the agent's terminal screen buffer every second: if anything changes (spinner, streaming text, tool output), the pill lights up. When an @mention trigger starts, the same activity heartbeat also renders a transient typing bubble in that channel's timeline so you can see which agent is preparing a reply. When the screen stops changing, both indicators stop instantly. Cross-platform — Windows uses `ReadConsoleOutputW`, Mac/Linux uses `tmux capture-pane`.
 
 ### Multi-instance agents
 Run multiple instances of the same provider — double-click the launcher again and a second instance auto-registers with its own identity, color, status pill, and @mention routing. No configuration needed.
@@ -318,7 +318,7 @@ agentchattr is designed to keep coordination lightweight:
 - a small MCP tool set — minimizes system prompt overhead while keeping progress and job handoff structured
 
 ### Presence & heartbeats
-The wrapper sends a heartbeat ping every 5 seconds to keep the agent marked as "online". Any MCP tool call (chat_read, chat_send, etc.) also refreshes presence. If no activity is seen for 10 seconds, the agent is marked offline. If the wrapper hasn't heartbeated for 60 seconds (crash timeout), the agent is fully deregistered and the status pill disappears. Clean shutdown deregisters immediately.
+The wrapper sends a heartbeat ping every 5 seconds to keep the agent marked as "online". Any MCP tool call (chat_read, chat_send, etc.) also refreshes presence. Activity heartbeats include the trigger channel when one is known, which lets the web UI show channel-scoped thinking bubbles instead of a global-only busy state. If no activity is seen for 10 seconds, the agent is marked offline. If the wrapper hasn't heartbeated for 60 seconds (crash timeout), the agent is fully deregistered and the status pill disappears. Clean shutdown deregisters immediately.
 
 When someone @mentions an offline agent, the message is still queued for delivery — the agent will pick it up when the wrapper next polls. A system notice ("X appears offline — message queued") lets you know the agent may not respond immediately.
 

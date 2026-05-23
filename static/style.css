@@ -7764,18 +7764,20 @@ main#timeline {
 /* Live typing and processing states from the reference design. */
 #typing-indicator.now-typing,
 #typing-indicator:not(.hidden) {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    align-self: flex-start;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    align-self: stretch;
     margin: 0 var(--space-5) var(--space-3);
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    box-shadow: var(--elev-1);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
     color: var(--muted);
     font-size: var(--text-sm);
+    font-style: normal;
 }
 
 #typing-indicator.hidden {
@@ -7784,6 +7786,42 @@ main#timeline {
 
 #typing-indicator .typing-name {
     color: var(--fg-2);
+    font-weight: 600;
+}
+
+.typing-message {
+    margin: 0;
+    padding: 0;
+    gap: var(--space-2);
+    align-items: flex-start;
+    max-width: min(520px, 100%);
+}
+
+.typing-bubble {
+    display: inline-flex;
+    flex-direction: column;
+    min-width: 168px;
+    max-width: min(360px, calc(100vw - 92px));
+    padding: var(--space-2) var(--space-3);
+    border-style: dashed;
+}
+
+.typing-bubble .bubble-header {
+    margin-bottom: 2px;
+}
+
+.thinking-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 18px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.thinking-role {
+    color: var(--muted);
+    font-size: 11px;
     font-weight: 600;
 }
 

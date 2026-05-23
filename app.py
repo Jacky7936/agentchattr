@@ -382,6 +382,7 @@ def configure(cfg: dict, session_token: str = ""):
                                 currently_active.add(name)
                             else:
                                 mcp_bridge._activity[name] = False  # auto-expire
+                                mcp_bridge._activity_channel.pop(name, None)
 
                 # Crash timeout: if a wrapper hasn't heartbeated for 60s,
                 # it's dead — deregister it to free the slot.
@@ -3025,11 +3026,15 @@ async def heartbeat(agent_name: str, request: Request):
     _activity_changed = False
     try:
         body = await request.json()
-        if "active" in body:
+        if isinstance(body, dict) and "active" in body:
             active_val = bool(body["active"])
-            was_active = mcp_bridge._activity.get(current_name, False)
-            mcp_bridge.set_active(current_name, active_val)
-            _activity_changed = was_active != active_val
+            channel = str(body.get("channel") or "").strip()
+            was_active = mcp_bridge.is_active(current_name)
+            was_channel = mcp_bridge.get_activity_channel(current_name) if was_active else ""
+            mcp_bridge.set_active(current_name, active_val, channel=channel)
+            is_now_active = mcp_bridge.is_active(current_name)
+            now_channel = mcp_bridge.get_activity_channel(current_name) if is_now_active else ""
+            _activity_changed = was_active != is_now_active or was_channel != now_channel
     except Exception:
         pass  # No body = plain heartbeat
     # Immediately broadcast on activity state change (don't wait for background checker)
