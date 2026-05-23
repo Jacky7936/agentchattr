@@ -1538,7 +1538,7 @@ async def broadcast_status():
     status = agents.get_status()
     status["paused"] = any(router.is_paused(ch) for ch in room_settings.get("channels", ["general"]))
     status["commander"] = {
-        ch: router.get_commander_status(ch)
+        ch: _commander_status_snapshot(ch)
         for ch in room_settings.get("channels", ["general"])
     }
     data = json.dumps({"type": "status", "data": status})
@@ -1549,6 +1549,76 @@ async def broadcast_status():
         except Exception:
             dead.add(client)
     ws_clients.difference_update(dead)
+
+
+def _public_lane_backlog(backlog: dict | None) -> dict:
+    if not isinstance(backlog, dict):
+        return {}
+    items = []
+    for raw_item in backlog.get("items") or []:
+        if not isinstance(raw_item, dict):
+            continue
+        items.append(
+            {
+                "text": str(raw_item.get("text") or ""),
+                "status": str(raw_item.get("status") or ""),
+                "updated_by": str(raw_item.get("updated_by") or ""),
+                "updated_at": float(raw_item.get("updated_at") or 0.0),
+                "note": str(raw_item.get("note") or ""),
+            }
+        )
+    return {
+        "items": items,
+        "current_index": int(backlog.get("current_index", 0) or 0),
+        "worker": str(backlog.get("worker") or ""),
+        "reviewer": str(backlog.get("reviewer") or ""),
+        "note": str(backlog.get("note") or ""),
+        "auto_advance": bool(backlog.get("auto_advance", True)),
+        "updated_at": float(backlog.get("updated_at") or 0.0),
+    }
+
+
+def _public_commander_lane(lane: dict | None) -> dict:
+    if not isinstance(lane, dict):
+        return {}
+    return {
+        "status": str(lane.get("status") or ""),
+        "channel": str(lane.get("channel") or ""),
+        "commander": str(lane.get("commander") or ""),
+        "active_agents": list(lane.get("active_agents") or []),
+        "task": str(lane.get("task") or ""),
+        "reason": str(lane.get("reason") or ""),
+        "updated_at": float(lane.get("updated_at") or 0.0),
+        "progress": dict(lane.get("progress") or {}),
+        "backlog": _public_lane_backlog(lane.get("backlog")),
+    }
+
+
+def _commander_status_snapshot(channel: str) -> dict:
+    status = router.get_commander_status(channel) if router else {}
+    lane = commander_ledger.get(channel) if commander_ledger else None
+    if not lane or lane.get("status") != "active":
+        return status
+
+    public_lane = _public_commander_lane(lane)
+    merged_progress = dict(status.get("worker_progress") or {})
+    for agent, progress in public_lane.get("progress", {}).items():
+        if isinstance(progress, dict):
+            merged_progress.setdefault(agent, dict(progress))
+
+    status["lane"] = public_lane
+    status["lane_status"] = public_lane.get("status", "")
+    status["commander"] = public_lane.get("commander", "")
+    status["task"] = public_lane.get("task", "")
+    status["goal"] = (
+        public_lane.get("backlog", {}).get("note")
+        or public_lane.get("reason")
+        or public_lane.get("task")
+        or ""
+    )
+    status["backlog"] = public_lane.get("backlog", {})
+    status["worker_progress"] = merged_progress
+    return status
 
 
 async def broadcast_typing(agent_name: str, is_typing: bool):
@@ -2309,7 +2379,7 @@ async def get_status():
     status = agents.get_status()
     status["paused"] = any(router.is_paused(ch) for ch in room_settings.get("channels", ["general"]))
     status["commander"] = {
-        ch: router.get_commander_status(ch)
+        ch: _commander_status_snapshot(ch)
         for ch in room_settings.get("channels", ["general"])
     }
     return status

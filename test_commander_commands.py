@@ -455,6 +455,60 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(router.get_commander_status("general")["worker_progress"]["codex-builder"]["state"], "running")
         self.assertEqual(restored.get("general")["progress"]["codex-builder"]["note"], "unit tests running")
 
+    async def test_status_snapshot_includes_active_lane_task_goal_and_backlog(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "design",
+                commander="codex-orchestrator",
+                active_agents=["codex-builder", "codex-reviewer"],
+                task="Refresh billing mockups",
+                reason="auto-dispatch from user request",
+                now=1000,
+            )
+            ledger.set_backlog(
+                "design",
+                items=["mockups/list.html", "mockups/detail.html"],
+                created_by="codex-orchestrator",
+                worker="codex-builder",
+                reviewer="codex-reviewer",
+                note="Ship the accepted visual direction",
+                now=1010,
+            )
+            ledger.mark_backlog_item(
+                "design",
+                item="mockups/list.html",
+                state="approved",
+                updated_by="codex-reviewer",
+                now=1020,
+            )
+            ledger.note_progress(
+                "design",
+                "codex-builder",
+                state="running",
+                eta_seconds=300,
+                note="building detail page",
+                now=1030,
+            )
+            router = Router(["codex-orchestrator", "codex-builder", "codex-reviewer"], default_mention="none")
+            router.set_commander_lock(
+                "design",
+                active_agents=["codex-builder", "codex-reviewer"],
+                updated_by="codex-orchestrator",
+                reason="auto-dispatch from user request",
+            )
+
+            with patch.object(chat_app, "router", router), patch.object(chat_app, "commander_ledger", ledger):
+                snapshot = chat_app._commander_status_snapshot("design")
+
+        self.assertEqual(snapshot["task"], "Refresh billing mockups")
+        self.assertEqual(snapshot["goal"], "Ship the accepted visual direction")
+        self.assertEqual(snapshot["commander"], "codex-orchestrator")
+        self.assertEqual(snapshot["backlog"]["items"][0]["status"], "approved")
+        self.assertEqual(snapshot["backlog"]["items"][1]["text"], "mockups/detail.html")
+        self.assertEqual(snapshot["worker_progress"]["codex-builder"]["note"], "building detail page")
+        self.assertNotIn("events", snapshot["lane"])
+
     async def test_lane_item_approval_auto_starts_worker_for_next_backlog_item(self):
         with tempfile.TemporaryDirectory() as tmp:
             ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
