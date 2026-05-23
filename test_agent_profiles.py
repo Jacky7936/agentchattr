@@ -410,6 +410,42 @@ class AgentProfileStoreTest(unittest.TestCase):
                 with self.subTest(profile=profile_id):
                     self.assertEqual(profile.get("response_language"), TRADITIONAL_CHINESE_RESPONSE_RULE)
 
+    def test_default_team_forces_ui_visual_handoff_contract(self):
+        from team_config import UI_VISUAL_HANDOFF_CONTRACT, apply_default_team_profiles
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+            profiles_path = data_dir / "agent_profiles.json"
+            profiles_path.write_text(
+                json.dumps(
+                    {
+                        "codex-reviewer": {
+                            "base": "codex",
+                            "name": "codex-reviewer",
+                            "label": "Codex Reviewer",
+                            "role": "Reviewer",
+                            "ui_visual_handoff_contract": "Old local visual rule.",
+                        },
+                        "codex-module-prototype-designer": {
+                            "base": "codex",
+                            "name": "codex-module-prototype-designer",
+                            "label": "Codex Module Prototype Designer",
+                            "role": "Module Prototype Designer",
+                        },
+                    }
+                ),
+                "utf-8",
+            )
+
+            apply_default_team_profiles(data_dir, AGENTS)
+
+            profiles = AgentProfileStore(profiles_path, AGENTS).get_all()
+            self.assertIn("chat_send(image_path=", UI_VISUAL_HANDOFF_CONTRACT)
+            self.assertIn("reviewer", UI_VISUAL_HANDOFF_CONTRACT)
+            for profile_id in ("codex-reviewer", "codex-module-prototype-designer", "codex-orchestrator"):
+                with self.subTest(profile=profile_id):
+                    self.assertEqual(profiles[profile_id].get("ui_visual_handoff_contract"), UI_VISUAL_HANDOFF_CONTRACT)
+
     def test_default_team_removes_retired_profiles(self):
         from team_config import apply_default_team_profiles
 

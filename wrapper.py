@@ -693,6 +693,9 @@ def _format_profile_context(profile: dict, *, role_fallback: str = "") -> str:
     lane_state_contract = str(profile.get("lane_state_contract", "")).strip()
     if lane_state_contract:
         parts.append(f"LANE STATE CONTRACT: {lane_state_contract}")
+    ui_visual_handoff_contract = str(profile.get("ui_visual_handoff_contract", "")).strip()
+    if ui_visual_handoff_contract:
+        parts.append(f"UI VISUAL HANDOFF CONTRACT: {ui_visual_handoff_contract}")
     specialty = str(profile.get("specialty", "")).strip()
     if specialty:
         parts.append(f"SPECIALTY: {specialty}")

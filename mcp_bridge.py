@@ -139,12 +139,20 @@ _MCP_INSTRUCTIONS = (
     "chat_update_lane_item(state='ready_for_review') when one item is complete. Reviewers MUST call "
     "chat_update_lane_item(state='approved') or state='needs_fix'. The server then auto-triggers the reviewer, "
     "worker, or commander checkpoint. When an item is approved and a next item exists, the server auto-starts "
-    "the configured worker directly instead of waiting for the orchestrator to reassign it.\n\n"
+    "the configured worker directly instead of waiting for the orchestrator to reassign it. When the final item "
+    "is approved and no backlog items remain, the server posts a TASK COMPLETE notice and wakes the orchestrator "
+    "to send a final chat_send summary for the human before release.\n\n"
     "CRITICAL — Lane State Before Final Replies:\n"
     "When you are active in a commander lane with a backlog, update machine-readable lane state before the final chat_send reply. "
     "Use chat_update_lane_item with approved / needs_fix / ready_for_review / blocked as appropriate: "
     "workers/designers/builders mark ready_for_review, reviewers/QA gates mark approved or needs_fix, and any role marks blocked "
     "when a commander decision is required. Do not rely on prose such as 'done', '放行', or 'needs polish' as the only handoff signal.\n\n"
+    "CRITICAL — UI Visual Handoff:\n"
+    "For UI-facing work, attach a current screenshot in the final visible chat update using "
+    "chat_send(image_path='/absolute/path.png', ...), including the route, viewport, and context in the message. "
+    "If screenshot capture fails, state the exact blocker and fallback evidence instead of implying visual QA passed. "
+    "Orchestrators should hand UI changes to a reviewer, and to QA when available; reviewer and QA roles should check "
+    "the screenshot or explicitly report that no current screenshot was supplied.\n\n"
     "CRITICAL — Proposing Jobs:\n"
     "Agents must ONLY propose jobs using chat_propose_job when explicitly asked by the user, OR when the request is a clearly 'scoped task'. "
     "A task is scoped if it has: 1) Concrete outcome, 2) Specific boundary, 3) Clear done criteria, 4) Explicit owner/intention, and 5) Appropriate size. "
@@ -731,13 +739,20 @@ def _maybe_trigger_lane_backlog_transition(
                     ),
                 )
         elif not next_item and commander:
+            total_items = len([entry for entry in backlog.get("items") or [] if isinstance(entry, dict)])
+            item_noun = "item" if total_items == 1 else "items"
             _trigger_lane_agent(
                 commander,
                 channel,
-                notice=f"Lane backlog complete in #{channel}: {item_text} was approved.",
+                notice=(
+                    f"TASK COMPLETE in #{channel}: all {total_items} backlog {item_noun} approved; "
+                    f"final item `{item_text}` passed. @{commander} is preparing the final summary."
+                ),
                 prompt=(
-                    f"use mcp to read #{channel}. The lane backlog appears complete after `{item_text}`. "
-                    "Summarize completion, identify residual risks, and decide whether to /release."
+                    f"use mcp to read #{channel}. The lane backlog is complete after `{item_text}`. "
+                    f"Post a final chat_send summary for the human in #{channel} before releasing. "
+                    "Include completed items/count, verification or reviewer status, attached screenshots or routes "
+                    "when relevant, residual risks, and the recommended next action. Then decide whether to /release."
                 ),
             )
 

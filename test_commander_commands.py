@@ -500,6 +500,52 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("auto-start", agents.triggers[0]["prompt"])
         self.assertIn("chat_update_lane_item(state='running')", agents.triggers[0]["prompt"])
 
+    async def test_final_backlog_approval_posts_completion_notice_and_summary_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "design",
+                commander="codex-orchestrator",
+                active_agents=["codex-module-prototype-designer", "codex-reviewer"],
+                task="Refresh mockups",
+                reason="auto-dispatch",
+                now=1000,
+            )
+            ledger.set_backlog(
+                "design",
+                items=["mockups/dashboard.html"],
+                created_by="codex-orchestrator",
+                worker="codex-module-prototype-designer",
+                reviewer="codex-reviewer",
+                now=1010,
+            )
+            agents = FakeSyncAgents(["codex-orchestrator", "codex-module-prototype-designer", "codex-reviewer"])
+            store = FakeStore()
+
+            with (
+                patch.object(mcp_bridge, "commander_ledger", ledger),
+                patch.object(mcp_bridge, "agents", agents),
+                patch.object(mcp_bridge, "store", store),
+                patch.object(mcp_bridge, "router", None),
+                patch.object(mcp_bridge, "registry", None),
+            ):
+                result = mcp_bridge.chat_update_lane_item(
+                    sender="codex-reviewer",
+                    state="approved",
+                    note="final pass",
+                    channel="design",
+                )
+
+        self.assertIn('"ok": true', result)
+        self.assertEqual(len(agents.triggers), 1)
+        self.assertEqual(agents.triggers[0]["agent_name"], "codex-orchestrator")
+        self.assertIn("TASK COMPLETE", store.messages[-1]["text"])
+        self.assertIn("all 1 backlog item", store.messages[-1]["text"])
+        self.assertIn("TASK COMPLETE", agents.triggers[0]["message"])
+        self.assertIn("final chat_send summary for the human", agents.triggers[0]["prompt"])
+        self.assertIn("completed items", agents.triggers[0]["prompt"])
+        self.assertIn("/release", agents.triggers[0]["prompt"])
+
     async def test_commander_watchdog_escalates_repeated_quiet_lanes(self):
         router = Router(
             ["codex-orchestrator", "claude-designer"],

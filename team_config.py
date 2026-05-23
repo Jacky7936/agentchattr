@@ -24,6 +24,14 @@ STRUCTURED_LANE_STATE_CONTRACT = (
     "state='ready_for_review' when worker/designer/builder work is complete, state='approved' or "
     "state='needs_fix' for reviewer/QA gates, and state='blocked' when a commander decision is required."
 )
+UI_VISUAL_HANDOFF_CONTRACT = (
+    "For UI-facing work (production UI, layout, prototype, or visual QA), before a final human-facing "
+    "completion reply: capture a current screenshot of the changed route or static prototype with Browser "
+    "or the repo's screenshot path, attach it via chat_send(image_path='/absolute/path.png', ...), and "
+    "include route, viewport, and context. If screenshot capture fails, state the exact blocker and fallback "
+    "evidence. Orchestrators should include @codex-reviewer, and @codex-qa when available, in the handoff; "
+    "reviewer and QA roles should check the screenshot or explicitly note that no current screenshot was supplied."
+)
 CODEX_GPT_55_LAUNCH_MODEL = "gpt-5.5"
 CLAUDE_OPUS_47_LAUNCH_MODEL = "claude-opus-4-7[1m]"
 CURSOR_COMPOSER_25_FAST_LAUNCH_MODEL = "composer-2.5-fast"
@@ -528,6 +536,7 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
             "runtime_policy": NONBLOCKING_RUNTIME_POLICY,
             "response_language": TRADITIONAL_CHINESE_RESPONSE_RULE,
             "lane_state_contract": STRUCTURED_LANE_STATE_CONTRACT,
+            "ui_visual_handoff_contract": UI_VISUAL_HANDOFF_CONTRACT,
             **profile,
         }
         existing = store.get(profile_id) or {}
@@ -536,7 +545,13 @@ def apply_default_team_profiles(data_dir: str | Path, agents_config: dict[str, d
         if has_custom_model and not has_custom_launch_model:
             profile = dict(profile)
             profile.pop("launch_model", None)
-        force_fields = ["base", "thinking_effort", "response_language", "lane_state_contract"]
+        force_fields = [
+            "base",
+            "thinking_effort",
+            "response_language",
+            "lane_state_contract",
+            "ui_visual_handoff_contract",
+        ]
         if profile.get("launch_model") and not has_custom_launch_model:
             force_fields.append("launch_model")
         if profile.get("launch_effort"):

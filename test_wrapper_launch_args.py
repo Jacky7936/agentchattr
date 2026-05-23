@@ -350,6 +350,15 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertIn("chat_update_lane_item", _MCP_INSTRUCTIONS)
         self.assertIn("approved / needs_fix / ready_for_review / blocked", _MCP_INSTRUCTIONS)
 
+    def test_mcp_instructions_describe_task_complete_summary(self):
+        self.assertIn("TASK COMPLETE", _MCP_INSTRUCTIONS)
+        self.assertIn("final chat_send summary", _MCP_INSTRUCTIONS)
+
+    def test_mcp_instructions_require_ui_screenshot_handoff(self):
+        self.assertIn("UI-facing", _MCP_INSTRUCTIONS)
+        self.assertIn("chat_send(image_path=", _MCP_INSTRUCTIONS)
+        self.assertIn("reviewer", _MCP_INSTRUCTIONS)
+
     def test_profile_context_includes_runtime_policy(self):
         formatted = _format_profile_context(
             {
@@ -384,6 +393,19 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         )
 
         self.assertIn("LANE STATE CONTRACT: Before final lane replies, write structured state.", formatted)
+
+    def test_profile_context_includes_ui_visual_handoff_contract(self):
+        formatted = _format_profile_context(
+            {
+                "role": "Builder",
+                "ui_visual_handoff_contract": "For UI-facing work, attach a screenshot with chat_send(image_path=...).",
+            }
+        )
+
+        self.assertIn(
+            "UI VISUAL HANDOFF CONTRACT: For UI-facing work, attach a screenshot with chat_send(image_path=...).",
+            formatted,
+        )
 
     def test_profile_context_includes_thinking_effort(self):
         formatted = _format_profile_context(
