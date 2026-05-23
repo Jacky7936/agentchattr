@@ -342,6 +342,9 @@ function switchChannel(name) {
     if (window.updateThinkingIndicators) {
         window.updateThinkingIndicators(window.latestStatusData || {});
     }
+    if (window.renderAgentWorkPanel) {
+        window.renderAgentWorkPanel(window.latestStatusData || {});
+    }
     renderChannelTabs();
     renderMobileChannelList();
     Store.set('activeChannel', name);

@@ -22,6 +22,7 @@ let soundEnabled = false;  // suppress sounds during initial history load
 let activeChannel = localStorage.getItem('agentchattr-channel') || 'general';
 let latestStatusData = {};  // latest /api/status payload, used by channel-aware UI states
 const manualTypingAgents = new Set();  // legacy typing event compatibility
+let agentWorkPanelOpen = false;
 let channelList = ['general'];
 let channelUnread = {};  // { channelName: count }
 let agentHats = {};  // { agent_name: svg_string }
@@ -286,6 +287,7 @@ function init() {
     setupPaste();
     setupScroll();
     setupSettingsKeys();
+    setupAgentWorkPanel();
     setupKeyboardShortcuts();
     RulesPanel.init();
     Jobs.init();
@@ -1103,6 +1105,7 @@ function applyAgentConfig(data) {
     // Re-color any messages already rendered (e.g. from a reconnect)
     recolorMessages();
     updateJobReplyTargetUI();
+    renderAgentWorkPanel(latestStatusData);
 }
 
 function recolorMessages() {
@@ -1891,6 +1894,7 @@ function updateStatus(data) {
         }
     }
     updateThinkingIndicators(data);
+    renderAgentWorkPanel(latestStatusData);
 }
 
 function updateTyping(agent, active) {
@@ -1955,6 +1959,275 @@ function renderThinkingIndicators(agentNames) {
 }
 
 window.updateThinkingIndicators = updateThinkingIndicators;
+
+// --- Agent mission panel ---
+
+const AGENT_WORK_DONE_STATES = new Set(['approved', 'done', 'complete', 'completed', 'closed', 'ready']);
+const AGENT_WORK_ACTIVE_STATES = new Set(['running', 'working', 'in_progress', 'ready_for_review']);
+const AGENT_WORK_WARN_STATES = new Set(['blocked', 'needs_fix', 'failed', 'stalled']);
+
+function setupAgentWorkPanel() {
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && agentWorkPanelOpen) {
+            toggleAgentWorkPanel(false);
+        }
+    });
+}
+
+function toggleAgentWorkPanel(force) {
+    const panel = document.getElementById('agent-work-panel');
+    const btn = document.getElementById('agent-work-toggle');
+    if (!panel) return;
+    const opening = typeof force === 'boolean' ? force : panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !opening);
+    agentWorkPanelOpen = opening;
+    if (btn) {
+        btn.classList.toggle('active', opening);
+        btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    }
+    if (opening) renderAgentWorkPanel(latestStatusData);
+}
+
+function renderAgentWorkPanel(data = latestStatusData) {
+    const content = document.getElementById('agent-work-content');
+    const badge = document.getElementById('agent-work-badge');
+    const toggle = document.getElementById('agent-work-toggle');
+    if (!content) return;
+
+    const model = buildAgentWorkModel(data || {});
+    if (badge) {
+        badge.textContent = String(model.activeAgentCount);
+        badge.classList.toggle('hidden', model.activeAgentCount === 0);
+    }
+    if (toggle) {
+        toggle.classList.toggle('has-active', model.hasActiveLane || model.activeAgentCount > 0);
+    }
+
+    const progressLabel = model.totalCheckpoints > 0
+        ? `已完成 ${model.doneCheckpoints} / ${model.totalCheckpoints} 個檢查點`
+        : (model.hasActiveLane ? '尚未建立可量測的檢查點' : '此頻道目前沒有進行中的任務線');
+    const remainingLabel = model.totalCheckpoints > 0
+        ? `距離目標還有 ${Math.max(0, model.totalCheckpoints - model.doneCheckpoints)} 個檢查點`
+        : (model.hasActiveLane ? '請代理人設定 backlog 後即可顯示進度' : '代理人開始回報後會顯示進度');
+
+    const rowsHtml = model.agents.length > 0
+        ? model.agents.map(agent => renderAgentWorkRow(agent, model)).join('')
+        : '<div class="agent-work-empty">尚未有已註冊代理人回報狀態。</div>';
+
+    content.innerHTML = `
+        <section class="agent-work-summary">
+            <div class="agent-work-channel">#${escapeHtml(model.channel)}</div>
+            <div class="agent-work-field">
+                <span class="agent-work-label">目前任務</span>
+                <strong>${escapeHtml(model.currentTask)}</strong>
+            </div>
+            <div class="agent-work-field">
+                <span class="agent-work-label">目標</span>
+                <strong>${escapeHtml(model.goal)}</strong>
+            </div>
+            <div class="agent-work-progress-head">
+                <span>${escapeHtml(progressLabel)}</span>
+                <strong>${model.percent}%</strong>
+            </div>
+            <div class="agent-work-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${model.percent}" aria-label="距離目標進度">
+                <span style="width: ${model.percent}%"></span>
+            </div>
+            <div class="agent-work-distance">${escapeHtml(remainingLabel)}</div>
+        </section>
+        <section class="agent-work-list" aria-label="代理人任務列表">
+            ${rowsHtml}
+        </section>
+    `;
+}
+
+function buildAgentWorkModel(data) {
+    const commanderByChannel = data.commander && typeof data.commander === 'object' ? data.commander : {};
+    const channelStatus = commanderByChannel[activeChannel] || {};
+    const lane = channelStatus.lane && typeof channelStatus.lane === 'object' ? channelStatus.lane : {};
+    const backlog = normalizeAgentWorkBacklog(channelStatus.backlog || lane.backlog || {});
+    const currentItem = currentAgentWorkItem(backlog);
+    const progress = Object.assign({}, lane.progress || {}, channelStatus.worker_progress || {});
+    const commanderName = channelStatus.commander || lane.commander || channelStatus.updated_by || '';
+    const agentNames = new Set();
+
+    if (commanderName) agentNames.add(commanderName);
+    for (const name of [...(channelStatus.active_agents || []), ...(lane.active_agents || [])]) {
+        if (name) agentNames.add(name);
+    }
+    for (const name of Object.keys(progress)) {
+        if (name) agentNames.add(name);
+    }
+
+    for (const [name, info] of Object.entries(data || {})) {
+        if (name === 'paused' || name === 'commander' || !info) continue;
+        const sameChannel = !info.busy_channel || info.busy_channel === activeChannel;
+        if ((info.busy && sameChannel) || (!channelStatus.locked && info.available)) {
+            agentNames.add(name);
+        }
+    }
+
+    const doneCheckpoints = backlog.items.filter(item => AGENT_WORK_DONE_STATES.has(String(item.status || '').toLowerCase())).length;
+    const totalCheckpoints = backlog.items.length;
+    const percent = totalCheckpoints > 0 ? Math.round((doneCheckpoints / totalCheckpoints) * 100) : 0;
+    const hasActiveLane = Boolean(channelStatus.locked || lane.status === 'active' || backlog.items.length > 0);
+    const currentTask = currentItem?.text || channelStatus.task || lane.task || channelStatus.reason || '尚未回報目前任務';
+    const goal = channelStatus.goal || backlog.note || lane.reason || channelStatus.reason || lane.task || '尚未回報目標';
+
+    const agents = [...agentNames].filter(Boolean).sort((a, b) => {
+        if (a === commanderName) return -1;
+        if (b === commanderName) return 1;
+        return getAgentDisplayName(a).localeCompare(getAgentDisplayName(b));
+    });
+
+    return {
+        channel: activeChannel,
+        commander: commanderName,
+        currentItem,
+        currentTask,
+        goal,
+        backlog,
+        progress,
+        agents,
+        hasActiveLane,
+        activeAgentCount: hasActiveLane ? agents.length : agents.filter(name => data[name]?.busy).length,
+        doneCheckpoints,
+        totalCheckpoints,
+        percent,
+    };
+}
+
+function normalizeAgentWorkBacklog(backlog) {
+    const items = Array.isArray(backlog.items) ? backlog.items.map(item => ({
+        text: String(item?.text || ''),
+        status: String(item?.status || ''),
+        updated_by: String(item?.updated_by || ''),
+        updated_at: Number(item?.updated_at || 0),
+        note: String(item?.note || ''),
+    })).filter(item => item.text) : [];
+    return {
+        items,
+        current_index: Number.isFinite(Number(backlog.current_index)) ? Number(backlog.current_index) : 0,
+        worker: String(backlog.worker || ''),
+        reviewer: String(backlog.reviewer || ''),
+        note: String(backlog.note || ''),
+    };
+}
+
+function currentAgentWorkItem(backlog) {
+    if (!backlog.items.length) return null;
+    const preferred = Math.max(0, Math.min(backlog.items.length - 1, backlog.current_index || 0));
+    for (let i = preferred; i < backlog.items.length; i++) {
+        if (!AGENT_WORK_DONE_STATES.has(backlog.items[i].status.toLowerCase())) return backlog.items[i];
+    }
+    return backlog.items.find(item => !AGENT_WORK_DONE_STATES.has(item.status.toLowerCase())) || backlog.items[backlog.items.length - 1];
+}
+
+function renderAgentWorkRow(agent, model) {
+    const info = latestStatusData[agent] || {};
+    const progress = model.progress[agent] || {};
+    const color = getColor(agent);
+    const displayName = getAgentDisplayName(agent);
+    const role = getAgentRoleFor(agent) || info.role || agentConfig[agent]?.base || '';
+    const state = agentWorkState(agent, info, progress, model);
+    const stateLabel = agentWorkStateLabel(state);
+    const task = agentWorkTask(agent, info, progress, model);
+    const goal = agent === model.commander ? '維持任務線持續推進' : model.goal;
+    const eta = formatAgentWorkEta(progress.eta_seconds);
+    const stateClass = agentWorkStateClass(state, info);
+
+    return `
+        <article class="agent-work-row ${stateClass}">
+            <div class="agent-work-avatar" style="background-color: ${color}">${getAvatarSvg(agent)}</div>
+            <div class="agent-work-row-body">
+                <div class="agent-work-row-top">
+                    <strong>${escapeHtml(displayName)}</strong>
+                    <span>${escapeHtml(stateLabel)}${eta ? ` · ${escapeHtml(eta)}` : ''}</span>
+                </div>
+                <div class="agent-work-role">${escapeHtml(role || agent)}</div>
+                <div class="agent-work-row-line"><span>任務</span><p>${escapeHtml(task)}</p></div>
+                <div class="agent-work-row-line"><span>目標</span><p>${escapeHtml(goal)}</p></div>
+                <div class="agent-work-mini-progress" aria-hidden="true"><span style="width: ${model.percent}%"></span></div>
+            </div>
+        </article>
+    `;
+}
+
+function agentWorkState(agent, info, progress, model) {
+    if (progress.state) return String(progress.state);
+    if (agent === model.commander && model.hasActiveLane) return 'coordinating';
+    if (model.currentItem && agent === model.backlog.worker) return model.currentItem.status || 'running';
+    if (model.currentItem && agent === model.backlog.reviewer) return model.currentItem.status === 'ready_for_review' ? 'reviewing' : 'waiting';
+    if (info.busy) return 'working';
+    if (info.available) return 'online';
+    return 'offline';
+}
+
+function agentWorkTask(agent, info, progress, model) {
+    if (agent === model.commander && model.hasActiveLane) {
+        const workerCount = Math.max(0, model.agents.length - 1);
+        return `協調 ${workerCount} 位進行中的代理人`;
+    }
+    if (progress.note) return String(progress.note);
+    if (model.currentItem && agent === model.backlog.worker) return model.currentItem.text;
+    if (model.currentItem && agent === model.backlog.reviewer) {
+        return model.currentItem.status === 'ready_for_review'
+            ? `審核 ${model.currentItem.text}`
+            : `等待審核交接：${model.currentItem.text}`;
+    }
+    if (model.hasActiveLane) return model.currentTask;
+    if (info.busy) return `正在 #${info.busy_channel || model.channel} 工作`;
+    if (info.available) return '在線，沒有進行中的任務';
+    return '離線';
+}
+
+function agentWorkStateClass(state, info) {
+    const clean = String(state || '').toLowerCase().replace(/\s+/g, '_');
+    if (AGENT_WORK_WARN_STATES.has(clean)) return 'is-warn';
+    if (AGENT_WORK_ACTIVE_STATES.has(clean) || info.busy || clean === 'coordinating') return 'is-active';
+    if (AGENT_WORK_DONE_STATES.has(clean)) return 'is-done';
+    if (clean === 'offline') return 'is-offline';
+    return 'is-idle';
+}
+
+function formatAgentWorkEta(seconds) {
+    const total = parseInt(seconds, 10);
+    if (!Number.isFinite(total) || total <= 0) return '';
+    if (total < 60) return '<1 分鐘';
+    if (total < 3600) return `約 ${Math.ceil(total / 60)} 分鐘`;
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.ceil((total % 3600) / 60);
+    return minutes > 0 ? `約 ${hours} 小時 ${minutes} 分鐘` : `約 ${hours} 小時`;
+}
+
+function agentWorkStateLabel(state) {
+    const clean = String(state || '').toLowerCase().replace(/\s+/g, '_');
+    const labels = {
+        approved: '已核准',
+        blocked: '卡住',
+        closed: '已關閉',
+        complete: '完成',
+        completed: '完成',
+        coordinating: '協調中',
+        done: '完成',
+        failed: '失敗',
+        in_progress: '進行中',
+        needs_fix: '需修正',
+        offline: '離線',
+        online: '在線',
+        pending: '待處理',
+        ready: '就緒',
+        ready_for_review: '待審核',
+        reviewing: '審核中',
+        running: '執行中',
+        stalled: '停滯',
+        waiting: '等待中',
+        working: '工作中',
+    };
+    return labels[clean] || String(state || '未知');
+}
+
+window.toggleAgentWorkPanel = toggleAgentWorkPanel;
+window.renderAgentWorkPanel = renderAgentWorkPanel;
 
 // --- Settings ---
 

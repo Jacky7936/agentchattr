@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>agentchattr</title>
-    <link rel="stylesheet" href="/static/style.css?v=316">
+    <link rel="stylesheet" href="/static/style.css?v=318">
     <link rel="stylesheet" href="/static/sessions.css?v=224">
     <link rel="stylesheet" href="/static/jobs.css?v=224">
     <link rel="icon" href="/static/favicon.ico">
@@ -36,6 +36,10 @@
                 </button>
                 <button class="settings-btn" id="pins-toggle" onclick="togglePinsPanel()" title="Pinned messages">
                     <span class="icon" data-lucide="pin" aria-hidden="true"></span>
+                </button>
+                <button class="settings-btn" id="agent-work-toggle" onclick="toggleAgentWorkPanel()" title="代理人任務狀態" aria-label="顯示代理人任務狀態" aria-expanded="false">
+                    <span class="icon" data-lucide="target" aria-hidden="true"></span>
+                    <span class="agent-work-badge hidden" id="agent-work-badge">0</span>
                 </button>
                 <button class="settings-btn danger-action" id="stop-agents-btn" onclick="stopAllAgents()" title="Stop all agents" aria-label="Stop all agents">
                     <span class="icon" data-lucide="power" aria-hidden="true"></span>
@@ -371,6 +375,20 @@
         </footer>
     </div>
 
+    <aside id="agent-work-panel" class="agent-work-panel hidden" aria-label="代理人任務狀態" aria-live="polite">
+        <div class="agent-work-grip" aria-hidden="true"></div>
+        <div class="agent-work-head">
+            <div>
+                <span class="agent-work-kicker">代理人</span>
+                <h2>任務狀態</h2>
+            </div>
+            <button type="button" class="agent-work-close" onclick="toggleAgentWorkPanel(false)" title="關閉" aria-label="關閉代理人任務狀態">
+                <span class="icon" data-lucide="x" aria-hidden="true"></span>
+            </button>
+        </div>
+        <div id="agent-work-content" class="agent-work-content"></div>
+    </aside>
+
     <div id="dropzone" class="hidden">
         <div class="dropzone-inner">Drop image here</div>
     </div>
@@ -381,8 +399,8 @@
     <script src="/static/store.js?v=223"></script>
     <script src="/static/sessions.js?v=223"></script>
     <script src="/static/jobs.js?v=224"></script>
-    <script src="/static/channels.js?v=226"></script>
+    <script src="/static/channels.js?v=227"></script>
     <script src="/static/rules-panel.js?v=223"></script>
-    <script src="/static/chat.js?v=275"></script>
+    <script src="/static/chat.js?v=277"></script>
 </body>
 </html>
