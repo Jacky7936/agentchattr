@@ -144,5 +144,84 @@ class ChannelFallbackStateTests(unittest.TestCase):
         self.assertEqual(channel, "portfolio")
 
 
+class FakeMessageStore:
+    def __init__(self, messages):
+        self.messages = list(messages)
+
+    def get_recent(self, limit, channel=None):
+        messages = [
+            message
+            for message in self.messages
+            if channel is None or message.get("channel", "general") == channel
+        ]
+        return messages[-limit:]
+
+
+class ChatResyncChannelFallbackTests(unittest.TestCase):
+    def setUp(self):
+        self._saved_store = mcp_bridge.store
+        self._saved_registry = mcp_bridge.registry
+        self._saved_ch = dict(mcp_bridge._last_read_channel)
+        self._saved_job = dict(mcp_bridge._last_read_job_id)
+        self._saved_cursors = {
+            sender: dict(channels)
+            for sender, channels in mcp_bridge._cursors.items()
+        }
+        mcp_bridge.registry = None
+        mcp_bridge._last_read_channel.clear()
+        mcp_bridge._last_read_job_id.clear()
+        mcp_bridge._cursors.clear()
+        mcp_bridge.store = FakeMessageStore(
+            [
+                {
+                    "id": 1,
+                    "sender": "Jacky",
+                    "text": "infra task",
+                    "type": "chat",
+                    "time": "10:00",
+                    "channel": "infra",
+                },
+                {
+                    "id": 2,
+                    "sender": "Jacky",
+                    "text": "general task",
+                    "type": "chat",
+                    "time": "10:01",
+                    "channel": "general",
+                },
+            ]
+        )
+
+    def tearDown(self):
+        mcp_bridge.store = self._saved_store
+        mcp_bridge.registry = self._saved_registry
+        mcp_bridge._last_read_channel.clear()
+        mcp_bridge._last_read_channel.update(self._saved_ch)
+        mcp_bridge._last_read_job_id.clear()
+        mcp_bridge._last_read_job_id.update(self._saved_job)
+        mcp_bridge._cursors.clear()
+        mcp_bridge._cursors.update(self._saved_cursors)
+
+    def test_chat_resync_records_explicit_channel_for_send_fallback(self):
+        mcp_bridge._last_read_job_id["codex-planner"] = 42
+
+        result = mcp_bridge.chat_resync(
+            sender="codex-planner",
+            limit=10,
+            channel="infra",
+        )
+
+        self.assertIn("infra task", result)
+        self.assertEqual(mcp_bridge._last_read_channel["codex-planner"], "infra")
+        self.assertNotIn("codex-planner", mcp_bridge._last_read_job_id)
+
+    def test_chat_resync_without_channel_does_not_overwrite_fallback(self):
+        mcp_bridge._last_read_channel["codex-planner"] = "infra"
+
+        mcp_bridge.chat_resync(sender="codex-planner", limit=10)
+
+        self.assertEqual(mcp_bridge._last_read_channel["codex-planner"], "infra")
+
+
 if __name__ == "__main__":
     unittest.main()

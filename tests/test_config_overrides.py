@@ -19,6 +19,7 @@ import config_loader  # noqa: E402
 
 ENV_VARS = [
     "AGENTCHATTR_DATA_DIR",
+    "AGENTCHATTR_HOST",
     "AGENTCHATTR_PORT",
     "AGENTCHATTR_MCP_HTTP_PORT",
     "AGENTCHATTR_MCP_SSE_PORT",
@@ -49,6 +50,11 @@ class ConfigOverrideTests(unittest.TestCase):
         os.environ["AGENTCHATTR_PORT"] = "8310"
         config = config_loader.load_config(ROOT)
         self.assertEqual(config["server"]["port"], 8310)
+
+    def test_host_env_var_overrides_config(self):
+        os.environ["AGENTCHATTR_HOST"] = "127.0.0.1"
+        config = config_loader.load_config(ROOT)
+        self.assertEqual(config["server"]["host"], "127.0.0.1")
 
     def test_mcp_ports_env_vars_override_config(self):
         os.environ["AGENTCHATTR_MCP_HTTP_PORT"] = "8210"
@@ -91,12 +97,14 @@ class ConfigOverrideTests(unittest.TestCase):
         abs_data = str(Path("/tmp/proj-a/.agentchattr").resolve())
         abs_uploads = str(Path("/tmp/proj-a/uploads").resolve())
         os.environ["AGENTCHATTR_DATA_DIR"] = abs_data
+        os.environ["AGENTCHATTR_HOST"] = "127.0.0.1"
         os.environ["AGENTCHATTR_PORT"] = "8310"
         os.environ["AGENTCHATTR_MCP_HTTP_PORT"] = "8210"
         os.environ["AGENTCHATTR_MCP_SSE_PORT"] = "8211"
         os.environ["AGENTCHATTR_UPLOAD_DIR"] = abs_uploads
         config = config_loader.load_config(ROOT)
         self.assertEqual(config["server"]["data_dir"], abs_data)
+        self.assertEqual(config["server"]["host"], "127.0.0.1")
         self.assertEqual(config["server"]["port"], 8310)
         self.assertEqual(config["mcp"]["http_port"], 8210)
         self.assertEqual(config["mcp"]["sse_port"], 8211)

@@ -8,6 +8,7 @@ override values from config.toml. This lets dotfiles/launcher layers run
 isolated instances per project without editing the repo's config file.
 
   AGENTCHATTR_DATA_DIR        → server.data_dir
+  AGENTCHATTR_HOST            → server.host
   AGENTCHATTR_PORT            → server.port           (int)
   AGENTCHATTR_MCP_HTTP_PORT   → mcp.http_port         (int)
   AGENTCHATTR_MCP_SSE_PORT    → mcp.sse_port          (int)
@@ -30,6 +31,7 @@ ROOT = Path(__file__).parent
 # Mapping: env var name → (config section, key, kind)
 _ENV_OVERRIDES = [
     ("AGENTCHATTR_DATA_DIR",      "server",   "data_dir",    "path"),
+    ("AGENTCHATTR_HOST",          "server",   "host",        "raw"),
     ("AGENTCHATTR_PORT",          "server",   "port",        "int"),
     ("AGENTCHATTR_MCP_HTTP_PORT", "mcp",      "http_port",   "int"),
     ("AGENTCHATTR_MCP_SSE_PORT",  "mcp",      "sse_port",    "int"),
