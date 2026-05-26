@@ -45,3 +45,53 @@
   --sans: 'Geist', 'SF Pro Text', system-ui, sans-serif;
   --mono: 'Geist Mono', 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
 }
+
+/* ============ Liquid Glass primitive ============ */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(36px) saturate(220%);
+  -webkit-backdrop-filter: blur(36px) saturate(220%);
+  border: 1px solid var(--glass-stroke);
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 1px 2px rgba(17, 17, 17, 0.03),
+    0 12px 36px rgba(17, 17, 17, 0.06);
+  border-radius: 18px;
+}
+
+/* Fallback when backdrop-filter is unsupported or prefers-reduced-transparency */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass { background: #FFFFFF; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: #FFFFFF;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* ============ Status pill ============ */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+.pill::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.pill.go     { background: var(--sem-go-bg);    color: var(--sem-go);    border-color: rgba(16, 185, 129, 0.25); }
+.pill.hold   { background: var(--sem-hold-bg);  color: var(--sem-hold);  border-color: rgba(245, 158, 11, 0.25); }
+.pill.stop   { background: var(--sem-stop-bg);  color: var(--sem-stop);  border-color: rgba(239, 68, 68, 0.25); }
+.pill.brief  { background: var(--sem-brief-bg); color: var(--sem-brief); border-color: rgba(99, 102, 241, 0.25); }
+.pill.plain  { background: rgba(17, 17, 17, 0.05); color: var(--ink-3); border-color: rgba(17, 17, 17, 0.05); }
+.pill.plain::before { display: none; }
