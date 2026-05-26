@@ -98,6 +98,9 @@
 
 /* ============ Agent tile ============ */
 .agent-tile {
+  --accent: var(--ink-3);
+  --accent-glow: transparent;
+  --accent-tint: rgba(17, 17, 17, 0.04);
   position: relative;
   padding: 18px 18px 14px;
   border-radius: 16px;
