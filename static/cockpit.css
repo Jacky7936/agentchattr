@@ -95,3 +95,68 @@
 .pill.brief  { background: var(--sem-brief-bg); color: var(--sem-brief); border-color: rgba(99, 102, 241, 0.25); }
 .pill.plain  { background: rgba(17, 17, 17, 0.05); color: var(--ink-3); border-color: rgba(17, 17, 17, 0.05); }
 .pill.plain::before { display: none; }
+
+/* ============ Agent tile ============ */
+.agent-tile {
+  position: relative;
+  padding: 18px 18px 14px;
+  border-radius: 16px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--glass-stroke);
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 1px 2px rgba(17, 17, 17, 0.03),
+    0 8px 24px rgba(17, 17, 17, 0.04);
+  background-color: var(--accent-tint);
+}
+.agent-tile::before {
+  content: ''; position: absolute; inset: 0;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(36px) saturate(220%);
+  -webkit-backdrop-filter: blur(36px) saturate(220%);
+  border-radius: 16px;
+  z-index: -2;
+}
+.agent-tile::after {
+  content: ''; position: absolute; inset: -50%;
+  background: radial-gradient(circle at 50% 50%, var(--accent-glow), transparent 60%);
+  z-index: -1; pointer-events: none;
+}
+.agent-tile[data-agent="codex"]  { --accent: var(--c-codex);  --accent-glow: var(--c-codex-glow);  --accent-tint: var(--c-codex-tint); }
+.agent-tile[data-agent="claude"] { --accent: var(--c-claude); --accent-glow: var(--c-claude-glow); --accent-tint: var(--c-claude-tint); }
+.agent-tile[data-agent="gemini"] { --accent: var(--c-gemini); --accent-glow: var(--c-gemini-glow); --accent-tint: var(--c-gemini-tint); }
+.agent-tile[data-agent="grok"]   { --accent: var(--c-grok);   --accent-glow: var(--c-grok-glow);   --accent-tint: var(--c-grok-tint); }
+
+.agent-row1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.agent-name {
+  font-family: var(--mono); font-size: 12.5px; font-weight: 600;
+  letter-spacing: 0.02em; color: var(--accent);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.agent-name::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 10px var(--accent);
+}
+.agent-name .role {
+  font-family: var(--sans); font-size: 10px; color: var(--ink-3);
+  margin-left: 2px; font-weight: 400; letter-spacing: 0;
+}
+.agent-task {
+  font-size: 12.5px; color: var(--ink-2); line-height: 1.5;
+  min-height: 38px; margin-bottom: 12px;
+}
+
+/* ============ Progress bar ============ */
+.progress-track {
+  height: 3px; background: rgba(17, 17, 17, 0.06);
+  border-radius: 9999px; overflow: hidden; position: relative;
+  margin-bottom: 10px;
+}
+.progress-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 9999px;
+  box-shadow: 0 0 8px var(--accent-glow);
+  transition: width 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}

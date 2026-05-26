@@ -59,3 +59,20 @@ def test_cockpit_css_pill_variants():
     for variant in [".pill", ".pill.go", ".pill.hold", ".pill.stop",
                     ".pill.brief", ".pill.plain"]:
         assert variant in css, f"missing pill variant {variant}"
+
+
+def test_cockpit_css_agent_tile():
+    css = _read("static/cockpit.css")
+    assert ".agent-tile" in css, "missing .agent-tile"
+    # halo via radial-gradient on ::after — single-side accent is BANNED per spec §3.4
+    assert "radial-gradient" in css, "agent-tile halo missing"
+    # agent color slots
+    for agent in ["codex", "claude", "gemini", "grok"]:
+        sel = f'[data-agent="{agent}"]'
+        assert sel in css, f"missing agent slot {sel}"
+
+
+def test_cockpit_css_progress_bar():
+    css = _read("static/cockpit.css")
+    assert ".progress-track" in css, "missing .progress-track"
+    assert ".progress-fill" in css, "missing .progress-fill"
