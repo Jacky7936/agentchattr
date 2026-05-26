@@ -76,3 +76,20 @@ def test_cockpit_css_progress_bar():
     css = _read("static/cockpit.css")
     assert ".progress-track" in css, "missing .progress-track"
     assert ".progress-fill" in css, "missing .progress-fill"
+
+
+def test_cockpit_css_shell_layout():
+    css = _read("static/cockpit.css")
+    assert "#cockpit-mode" in css, "missing shell container styles"
+    # show/hide via body class
+    assert "body.cockpit-active" in css, "missing body.cockpit-active rules"
+    # ambient orbs for refraction
+    assert "body::before" in css or "body.cockpit-active::before" in css \
+        or "#cockpit-mode::before" in css, \
+        "missing ambient orbs (refraction source) per spec §4.1"
+
+
+def test_cockpit_css_empty_state():
+    css = _read("static/cockpit.css")
+    assert ".cockpit-standby" in css, \
+        "missing .cockpit-standby (STANDING BY empty state) class"

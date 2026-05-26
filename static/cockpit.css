@@ -163,3 +163,121 @@
   box-shadow: 0 0 8px var(--accent-glow);
   transition: width 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* ============ Cockpit shell ============ */
+#cockpit-mode {
+  display: none;
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 24px 28px;
+  min-height: calc(100vh - 64px);
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+}
+body.cockpit-active #cockpit-mode { display: grid; }
+body.cockpit-active #content-area,
+body.cockpit-active #channel-bar,
+body.cockpit-active #session-bar,
+body.cockpit-active #schedules-bar,
+body.cockpit-active footer { display: none; }
+body.cockpit-active { background: var(--canvas); }
+
+/* Ambient orbs — give Liquid Glass something to refract on white */
+body.cockpit-active::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 35% 28% at 12% 18%, var(--c-codex-glow), transparent 65%),
+    radial-gradient(ellipse 30% 24% at 88% 22%, var(--c-claude-glow), transparent 65%),
+    radial-gradient(ellipse 38% 30% at 72% 82%, var(--c-gemini-glow), transparent 65%),
+    radial-gradient(ellipse 24% 20% at 28% 78%, var(--c-grok-glow), transparent 60%);
+  opacity: 0.55;
+  animation: cockpit-drift 24s ease-in-out infinite alternate;
+}
+@keyframes cockpit-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06) rotate(0.6deg); }
+}
+
+/* Topbar variant inside cockpit */
+.cockpit-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-radius: 14px;
+}
+.cockpit-brand {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; color: var(--ink-3);
+  text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.cockpit-brand-dot {
+  width: 7px; height: 7px; background: var(--ink-4);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.05);
+}
+
+/* STANDING BY empty state */
+.cockpit-standby {
+  padding: 48px 32px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; gap: 16px;
+  border-radius: 18px;
+  min-height: 280px;
+}
+.cockpit-standby .label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--ink-4);
+}
+.cockpit-standby h1 {
+  font-family: var(--sans); font-weight: 600;
+  font-size: clamp(26px, 3.6vw, 34px);
+  letter-spacing: -0.028em; line-height: 1.1; color: var(--ink);
+}
+.cockpit-standby p {
+  font-size: 13.5px; color: var(--ink-3); max-width: 460px; line-height: 1.6;
+}
+.cockpit-standby button {
+  appearance: none; margin-top: 12px;
+  background: var(--ink); color: white;
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 10px 22px; border: 0; border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 120ms ease;
+}
+.cockpit-standby button:active { transform: scale(0.98); }
+.cockpit-standby button[disabled] {
+  opacity: 0.5; cursor: not-allowed;
+}
+
+/* Transcript area (mirrors live channel messages) */
+.cockpit-transcript {
+  padding: 20px 24px 14px;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px;
+  min-height: 0;
+}
+.cockpit-transcript-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--glass-stroke-dark);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-4);
+}
+.cockpit-msg {
+  display: grid; grid-template-columns: 96px 1fr; gap: 18px;
+  align-items: baseline;
+}
+.cockpit-msg-meta {
+  font-family: var(--mono); font-size: 11px;
+  text-align: right; line-height: 1.4;
+}
+.cockpit-msg-meta .who { font-weight: 600; display: block; }
+.cockpit-msg-meta .when { color: var(--ink-4); font-size: 10px; display: block; margin-top: 3px; }
+.cockpit-msg-body { font-size: 13.5px; line-height: 1.65; color: var(--ink-2); word-wrap: break-word; }
+
+/* Cockpit toggle button in topbar */
+.cockpit-toggle.active { color: var(--sem-go); }
