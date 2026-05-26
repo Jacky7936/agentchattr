@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Iterable
 
 from agent_profiles import normalize_profile_id
 
+log = logging.getLogger(__name__)
+
 DISPATCH_SCORE_THRESHOLD = 10
 NEAR_MISS_SCORE_THRESHOLD = 4
+# P2: even when config sets auto_dispatch_max_targets=0 (no fixed cap), keep a
+# fail-safe ceiling so a single fuzzy request can't wake every Opus-tier worker.
+# Override per call by passing max_targets > 0.
+FAILSAFE_TARGET_CEILING = 8
+_failsafe_logged = False
 
 MULTI_REVIEWER_PATTERNS = (
     r"\bcross[- ]?model\b",
@@ -135,7 +143,19 @@ def select_dispatch_targets(
     if not text or not profiles:
         return []
 
-    unlimited = max_targets <= 0
+    # P2: max_targets<=0 still means "no fixed cap from config", but we clamp
+    # to FAILSAFE_TARGET_CEILING so a single auto-dispatch can't fan out to
+    # the entire team. Log once on first clamp so the operator notices.
+    effective_cap = max_targets if max_targets > 0 else FAILSAFE_TARGET_CEILING
+    global _failsafe_logged
+    if max_targets <= 0 and not _failsafe_logged:
+        log.warning(
+            "auto_dispatch_max_targets=%s; clamping to fail-safe ceiling %d. "
+            "Set a positive value in config.toml [routing] to silence.",
+            max_targets,
+            FAILSAFE_TARGET_CEILING,
+        )
+        _failsafe_logged = True
 
     active = {normalize_profile_id(n) for n in active_names} if active_names is not None else None
     scored = []
@@ -168,7 +188,7 @@ def select_dispatch_targets(
     candidates = _prune_same_role_candidates(non_dispatchers, text) if non_dispatchers else scored
     candidates.sort(key=lambda item: (-item["score"], item["rank"], item["name"]))
     names = [item["name"] for item in candidates]
-    return names if unlimited else names[:max_targets]
+    return names[:effective_cap]
 
 
 def _score_profile(text: str, profile: dict) -> int:

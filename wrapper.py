@@ -758,6 +758,35 @@ def _report_rule_sync(server_port: int, agent_name: str, epoch: int, token: str 
         pass
 
 
+def _queue_entry_instruction(entry: dict) -> str:
+    raw_prompt = entry.get("prompt", "")
+    if isinstance(raw_prompt, str) and raw_prompt.strip():
+        return raw_prompt.strip()
+    job_id = entry.get("job_id")
+    if job_id:
+        return f"use mcp to read job_id={job_id} - you're mentioned in a job thread, take appropriate action and respond"
+    channel = str(entry.get("channel") or "general")
+    return f"use mcp to read #{channel} - you're mentioned, take appropriate action and respond"
+
+
+def _queue_prompt_from_entries(entries: list[dict]) -> tuple[str, str]:
+    if not entries:
+        return "", "general"
+    first_channel = str(entries[0].get("channel") or "general")
+    if len(entries) == 1:
+        return _queue_entry_instruction(entries[0]), first_channel
+    instructions = [
+        f"{index}. {_queue_entry_instruction(entry)}"
+        for index, entry in enumerate(entries, start=1)
+    ]
+    return (
+        "Multiple agentchattr triggers arrived; handle them in order and respond "
+        "in the relevant channel/job: "
+        + " ".join(instructions),
+        first_channel,
+    )
+
+
 def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = False, trigger_flag=None,
                    server_port: int = 8300, agent_name: str = "", get_token_fn=None,
                    refresh_interval: int = 10, trigger_channel=None):
@@ -768,13 +797,50 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
     while True:
         try:
             _, queue_file = get_identity_fn()
+            # P0-B: claim the queue atomically by renaming to <name>.processing,
+            # so concurrent appends from agents.py never get truncated to zero
+            # in the gap between read and clear. Any *.processing leftover from
+            # a previous crash is drained first so we don't lose entries.
+            processing_file = queue_file.with_suffix(queue_file.suffix + ".processing")
+            lines: list[str] = []
+            if processing_file.exists():
+                try:
+                    with open(processing_file, "r", encoding="utf-8") as f:
+                        lines.extend(f.readlines())
+                except OSError:
+                    pass
+                try:
+                    processing_file.unlink()
+                except OSError:
+                    pass
             if queue_file.exists() and queue_file.stat().st_size > 0:
-                with open(queue_file, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                queue_file.write_text("", "utf-8")
+                try:
+                    queue_file.rename(processing_file)  # atomic on POSIX
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    # Fallback to legacy read+truncate if rename can't be done
+                    # (e.g. Windows when target exists); accepts the small race
+                    # window but keeps the watcher functional.
+                    try:
+                        with open(queue_file, "r", encoding="utf-8") as f:
+                            lines.extend(f.readlines())
+                        queue_file.write_text("", "utf-8")
+                    except OSError:
+                        pass
+                else:
+                    try:
+                        with open(processing_file, "r", encoding="utf-8") as f:
+                            lines.extend(f.readlines())
+                    except OSError:
+                        pass
+                    try:
+                        processing_file.unlink()
+                    except OSError:
+                        pass
 
-                has_trigger = False
-                channel = "general"
+            if lines:
+                entries = []
                 for line in lines:
                     line = line.strip()
                     if not line:
@@ -783,42 +849,17 @@ def _queue_watcher(get_identity_fn, inject_fn, *, is_multi_instance: bool = Fals
                         data = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    has_trigger = True
-                    if isinstance(data, dict) and "channel" in data:
-                        channel = data["channel"]
+                    if isinstance(data, dict):
+                        entries.append(data)
 
-                if has_trigger:
+                if entries:
+                    prompt, channel = _queue_prompt_from_entries(entries)
                     # Signal activity BEFORE injecting — covers the thinking phase
                     if trigger_flag is not None:
                         trigger_flag[0] = True
                     if trigger_channel is not None:
                         trigger_channel[0] = str(channel or "general")
                     time.sleep(0.5)
-
-                    # Check if this is a job/activity-scoped trigger
-                    job_id = None
-                    custom_prompt = ""
-                    for line in lines:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            data = json.loads(line)
-                            if isinstance(data, dict) and "job_id" in data:
-                                job_id = data["job_id"]
-                            if isinstance(data, dict):
-                                raw_prompt = data.get("prompt", "")
-                                if isinstance(raw_prompt, str) and raw_prompt.strip():
-                                    custom_prompt = raw_prompt.strip()
-                        except json.JSONDecodeError:
-                            pass
-
-                    if custom_prompt:
-                        prompt = custom_prompt
-                    elif job_id:
-                        prompt = f"use mcp to read job_id={job_id} - you're mentioned in a job thread, take appropriate action and respond"
-                    else:
-                        prompt = f"use mcp to read #{channel} - you're mentioned, take appropriate action and respond"
 
                     # Use current identity (may have changed via rename)
                     current_name, _ = get_identity_fn()

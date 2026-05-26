@@ -690,12 +690,15 @@ async def _maybe_restore_commander_lanes(now: float | None = None) -> list[str]:
         channel = str(lane.get("channel") or "general")
         if channel in _restored_commander_lanes:
             continue
-        updated_at = float(lane.get("updated_at") or lane.get("created_at") or 0.0)
-        if max_age > 0 and updated_at and ts - updated_at > max_age:
+        updated_at = float(lane.get("updated_at") or 0.0)
+        # Use last_activity_at (worker activity only) instead of updated_at,
+        # so watchdog events don't refresh the stale-restore timer (P0-A fix).
+        activity_at = float(lane.get("last_activity_at") or lane.get("created_at") or 0.0)
+        if max_age > 0 and activity_at and ts - activity_at > max_age:
             commander_ledger.release_lane(
                 channel,
                 updated_by="system",
-                reason=f"stale restore timeout after {int(ts - updated_at)}s",
+                reason=f"stale restore timeout after {int(ts - activity_at)}s",
                 now=ts,
             )
             if store:
@@ -714,6 +717,25 @@ async def _maybe_restore_commander_lanes(now: float | None = None) -> list[str]:
             if normalize_profile_id(str(agent))
         ]
         if not commander or not active_agents:
+            continue
+
+        if not _commander_watchdog_has_actionable_work(
+            channel,
+            {"active_agents": active_agents, "reason": str(lane.get("reason") or lane.get("task") or "")},
+        ):
+            commander_ledger.release_lane(
+                channel,
+                updated_by="system",
+                reason="restore standby: no active task",
+                now=ts,
+            )
+            if store:
+                store.add(
+                    "system",
+                    f"Commander restore skipped in #{channel}: no active task; waiting for user instruction.",
+                    msg_type="system",
+                    channel=channel,
+                )
             continue
 
         registered = set(registry.get_active_names())
@@ -944,22 +966,110 @@ async def _trigger_commander_target(target: str, sender: str, text: str, channel
     await _trigger_commander_targets([target], sender, text, channel)
 
 
-async def _trigger_commander_targets(targets: list[str], sender: str, text: str, channel: str):
+async def _trigger_commander_targets(
+    targets: list[str],
+    sender: str,
+    text: str,
+    channel: str,
+    *,
+    task_context: str = "",
+):
     if not agents:
         return
     active_text = ", ".join(f"@{target}" for target in targets)
+    task_text = str(task_context or "").strip()
+    task_sentence = f"Current assigned task/context: {task_text}. " if task_text else ""
     for target in targets:
         if not agents or not agents.is_available(target):
             continue
         prompt = (
             f"use mcp to read #{channel}. Commander lock is active and the active worker lane is "
-            f"{active_text}. @{target}, respond with your assigned handoff/status. Do not mention "
+            f"{active_text}. {task_sentence}@{target}, respond with your assigned handoff/status. Do not mention "
             "or wake agents outside the active lane unless the orchestrator or human explicitly "
             "hands off. If this is a structured backlog lane, update your item state with "
             "chat_update_lane_item before your final chat reply instead of waiting for a human checkpoint. "
             "Coordinate with active lane peers only when useful, then report done or blocked once and stop."
         )
         await agents.trigger(target, message=f"{sender}: {text}", channel=channel, prompt=prompt)
+
+
+def _commander_task_context(sender: str, text: str, command_text: str, channel: str) -> str:
+    direct_context = _task_context_from_commander_message(text, command_text)
+    if direct_context:
+        return direct_context
+    clean_sender = normalize_profile_id(sender or "")
+    if clean_sender not in _known_agent_names():
+        return ""
+    return _latest_human_task_context(clean_sender, channel)
+
+
+def _task_context_from_commander_message(text: str, command_text: str) -> str:
+    parts = []
+    command_line = (command_text or "").strip()
+    command_pattern = "|".join(_re.escape(command) for command in sorted(_COMMANDER_COMMANDS, key=len, reverse=True))
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        stripped = _strip_mentions_for_command(line)
+        if _is_commander_command(stripped):
+            remainder = _re.sub(rf"^({command_pattern})\b", "", line, flags=_re.IGNORECASE).strip()
+            remainder = _re.sub(r"@[\w-]+\s*", "", remainder).strip(" :-\t")
+            if remainder:
+                parts.append(remainder)
+            continue
+        if line != command_line:
+            parts.append(line)
+    return "\n".join(parts).strip()
+
+
+def _latest_human_task_context(commander: str, channel: str) -> str:
+    if not store or not hasattr(store, "get_recent"):
+        return ""
+    known_agents = _known_agent_names()
+    try:
+        recent = store.get_recent(count=100, channel=channel)
+    except Exception:
+        return ""
+    fallback = ""
+    for msg in reversed(recent):
+        if msg.get("type", "chat") != "chat":
+            continue
+        sender = normalize_profile_id(str(msg.get("sender") or ""))
+        if not sender or sender in known_agents or sender == normalize_profile_id(commander):
+            continue
+        text = str(msg.get("text") or "").strip()
+        if not _re.sub(r"@[\w-]+\s*", "", text).strip():
+            continue
+        context = f"Latest human instruction from {msg.get('sender', 'human')}: {text}"
+        if _human_instruction_has_task_detail(text):
+            return context
+        if not fallback:
+            fallback = context
+    return fallback
+
+
+def _human_instruction_has_task_detail(text: str) -> bool:
+    cleaned = _re.sub(r"@[\w-]+\s*", "", str(text or "")).strip().lower()
+    if not cleaned:
+        return False
+    if _re.search(r"\b[\w./-]+\.(?:md|txt|py|ts|tsx|js|jsx|json|toml|sql|html)\b", cleaned):
+        return True
+    detail_terms = (
+        "review",
+        "patch",
+        "plan",
+        "docs/",
+        "文件",
+        "修",
+        "修改",
+        "統整",
+        "判定",
+        "負責",
+        "指派",
+        "實作",
+    )
+    return len(cleaned) >= 16 and any(term in cleaned for term in detail_terms)
 
 
 async def _handle_commander_command(sender: str, text: str, channel: str) -> bool:
@@ -992,12 +1102,14 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
                 channel=channel,
             )
             return True
+        task_context = _commander_task_context(sender, text, command_text, channel)
+        task = task_context or reason
         router.set_commander_lock(channel, active_agents=targets, updated_by=sender, reason=reason)
         _record_commander_lane(
             channel,
             commander=sender,
             workers=targets,
-            task=reason,
+            task=task,
             reason=reason,
             event_type="handoff",
         )
@@ -1010,7 +1122,7 @@ async def _handle_commander_command(sender: str, text: str, channel: str) -> boo
             channel=channel,
         )
         await broadcast_status()
-        await _trigger_commander_targets(targets, sender, text, channel)
+        await _trigger_commander_targets(targets, sender, text, channel, task_context=task_context)
         return True
 
     if cmd == "/standby":
@@ -1112,6 +1224,131 @@ def _watchdog_progress_text(status: dict) -> str:
     return "; ".join(parts)
 
 
+_WATCHDOG_INACTIVE_PROGRESS_STATES = {
+    "approved",
+    "complete",
+    "completed",
+    "done",
+    "idle",
+    "released",
+    "standby",
+    "waiting",
+}
+
+_WATCHDOG_DONE_BACKLOG_STATES = {
+    "approved",
+    "cancelled",
+    "canceled",
+    "complete",
+    "completed",
+    "done",
+    "released",
+}
+
+
+def _is_commander_control_only_text(text: str) -> bool:
+    stripped = _strip_mentions_for_command(str(text or "").strip())
+    return bool(stripped) and _is_commander_command(stripped)
+
+
+def _safe_float_timestamp(value) -> float:
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _ledger_lane_activity_at(lane: dict | None) -> float:
+    if not isinstance(lane, dict):
+        return 0.0
+    latest = _safe_float_timestamp(lane.get("last_activity_at"))
+    for progress in (lane.get("progress") or {}).values():
+        if isinstance(progress, dict):
+            latest = max(latest, _safe_float_timestamp(progress.get("updated_at")))
+    backlog = lane.get("backlog") or {}
+    if isinstance(backlog, dict):
+        latest = max(latest, _safe_float_timestamp(backlog.get("updated_at")))
+        for item in backlog.get("items") or []:
+            if isinstance(item, dict):
+                latest = max(latest, _safe_float_timestamp(item.get("updated_at")))
+    return latest
+
+
+def _progress_has_active_watchdog_work(progress_by_agent: dict, active_agents: list[str]) -> bool:
+    active = {normalize_profile_id(agent) for agent in active_agents if normalize_profile_id(agent)}
+    for agent, progress in (progress_by_agent or {}).items():
+        clean_agent = normalize_profile_id(agent)
+        if clean_agent not in active or not isinstance(progress, dict):
+            continue
+        state = str(progress.get("state") or "working").strip().lower()
+        if state not in _WATCHDOG_INACTIVE_PROGRESS_STATES:
+            return True
+    return False
+
+
+def _backlog_has_active_watchdog_work(backlog: dict, active_agents: list[str]) -> bool:
+    if not isinstance(backlog, dict):
+        return False
+    active = {normalize_profile_id(agent) for agent in active_agents if normalize_profile_id(agent)}
+    if not active:
+        return False
+
+    items = [item for item in backlog.get("items") or [] if isinstance(item, dict)]
+    if not items:
+        return False
+    current_index = _safe_int(backlog.get("current_index"), 0)
+    ordered_items = []
+    if 0 <= current_index < len(items):
+        ordered_items.append(items[current_index])
+    ordered_items.extend(item for item in items if item not in ordered_items)
+
+    worker = normalize_profile_id(backlog.get("worker") or "")
+    reviewer = normalize_profile_id(backlog.get("reviewer") or "")
+    for item in ordered_items:
+        state = str(item.get("status") or "").strip().lower()
+        if not state or state in _WATCHDOG_DONE_BACKLOG_STATES:
+            continue
+        updated_by = normalize_profile_id(item.get("updated_by") or "")
+        if state == "ready_for_review":
+            if reviewer in active or (not reviewer and updated_by in active):
+                return True
+            continue
+        if state in ("running", "needs_fix", "pending"):
+            if worker in active or updated_by in active or (not worker and active):
+                return True
+            continue
+        if state == "blocked":
+            return True
+        if worker in active or reviewer in active or updated_by in active:
+            return True
+    return False
+
+
+def _commander_watchdog_has_actionable_work(channel: str, status: dict) -> bool:
+    active_agents = status.get("active_agents") or (
+        [status.get("active_agent")] if status.get("active_agent") else []
+    )
+    active_agents = [name for name in active_agents if name]
+    if not active_agents:
+        return False
+    if not commander_ledger:
+        return True
+
+    lane = commander_ledger.get(channel)
+    if not lane or lane.get("status") != "active":
+        return False
+
+    if _backlog_has_active_watchdog_work(lane.get("backlog") or {}, active_agents):
+        return True
+    if _progress_has_active_watchdog_work(lane.get("progress") or {}, active_agents):
+        return True
+    if _progress_has_active_watchdog_work(status.get("worker_progress") or {}, active_agents):
+        return True
+
+    task_text = str(lane.get("task") or lane.get("reason") or status.get("reason") or "").strip()
+    return bool(task_text and not _is_commander_control_only_text(task_text))
+
+
 def _commander_watchdog_prompt(
     channel: str,
     active_text: str,
@@ -1168,10 +1405,34 @@ async def _run_commander_watchdog(now: float | None = None) -> list[str]:
         if not status.get("locked") or not active_agents:
             continue
 
+        if not _commander_watchdog_has_actionable_work(channel, status):
+            reason = "watchdog standby: no active task"
+            router.release_commander_lock(channel, updated_by="watchdog")
+            _release_commander_lane(channel, updated_by="watchdog", reason=reason)
+            store.add(
+                "system",
+                f"Commander watchdog: no active task in #{channel}; released lane and waiting for user instruction.",
+                msg_type="system",
+                channel=channel,
+            )
+            await broadcast_status()
+            continue
+
         last_worker_at = float(status.get("last_worker_activity_at") or 0.0)
         last_progress_at = float(status.get("last_worker_progress_at") or 0.0)
-        last_lane_at = max(last_worker_at, last_progress_at, float(status.get("updated_at") or 0.0))
-        if not last_lane_at or ts < _progress_eta_hold_until(status, threshold):
+        lane = commander_ledger.get(channel) if commander_ledger else None
+        ledger_activity_at = _ledger_lane_activity_at(lane)
+        last_lane_at = max(
+            last_worker_at,
+            last_progress_at,
+            ledger_activity_at,
+            float(status.get("updated_at") or 0.0),
+        )
+        hold_until = max(
+            _progress_eta_hold_until(status, threshold),
+            ledger_activity_at + threshold if ledger_activity_at else 0.0,
+        )
+        if not last_lane_at or ts < hold_until:
             continue
 
         reminded_at = float(status.get("watchdog_reminded_at") or 0.0)
@@ -1180,6 +1441,25 @@ async def _run_commander_watchdog(now: float | None = None) -> list[str]:
 
         commander = _resolve_watchdog_commander(status)
         if not commander or not agents.is_available(commander):
+            # P1-A: if no commander is reachable and the lane has been quiet
+            # for more than 2x the watchdog threshold, auto-release the lane
+            # so the channel doesn't stay locked forever. The human can
+            # re-dispatch when ready.
+            quiet_for = int(ts - last_lane_at) if last_lane_at else 0
+            if quiet_for >= threshold * 2:
+                commander_label = commander or "(no commander resolved)"
+                reason = (
+                    f"commander {commander_label} unavailable; lane quiet for {quiet_for}s; auto-released"
+                )
+                router.release_commander_lock(channel, updated_by="watchdog")
+                _release_commander_lane(channel, updated_by="watchdog", reason=reason)
+                store.add(
+                    "system",
+                    f"Commander watchdog: {reason} in #{channel}. Re-dispatch when ready.",
+                    msg_type="system",
+                    channel=channel,
+                )
+                await broadcast_status()
             continue
 
         level = int(status.get("watchdog_count", 0) or 0) + 1

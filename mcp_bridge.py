@@ -85,6 +85,9 @@ _MCP_INSTRUCTIONS = (
     "in the same channel. NEVER respond only in your terminal/console output. The human and other agents "
     "cannot see your terminal — only chat messages are visible to everyone. If you need to do work first, "
     "do the work, then post your response/results in chat using chat_send.\n\n"
+    "CRITICAL — @all Broadcast Discipline:\n"
+    "@all is reserved for human or orchestrator dispatch. Do not use @all for presence, standby, or reclaim announcements; "
+    "write plain text instead. Non-orchestrator agents should mention only the specific active lane peers or commander they intend to wake.\n\n"
     "CRITICAL — Response Language:\n"
     "All agent chat replies MUST use Traditional Chinese (繁體中文) by default. Keep code, commands, "
     "identifiers, file paths, and quoted source text in their original language.\n\n"
@@ -533,6 +536,14 @@ def chat_set_lane_backlog(
     )
     if not updated:
         return "Error: failed to set lane backlog."
+    lane_agents = [agent for agent in (worker, reviewer) if str(agent or "").strip()]
+    if router and lane_agents:
+        router.merge_commander_active_agents(
+            channel,
+            active_agents=lane_agents,
+            updated_by=sender,
+            reason="chat_set_lane_backlog worker/reviewer",
+        )
     next_item = commander_ledger.next_backlog_item(channel) or {}
     if store:
         store.add(
@@ -688,7 +699,7 @@ def _maybe_trigger_lane_backlog_transition(
     reviewer = str(backlog.get("reviewer") or "").strip()
     commander = str(lane.get("commander") or "").strip()
     if state == "ready_for_review" and reviewer:
-        _trigger_lane_agent(
+        triggered_reviewer = _trigger_lane_agent(
             reviewer,
             channel,
             notice=f"Lane checkpoint ready in #{channel}: {item_text}",
@@ -699,6 +710,23 @@ def _maybe_trigger_lane_backlog_transition(
                 "chat_update_lane_item(state='needs_fix') with exact blockers."
             ),
         )
+        # P1-B: if the reviewer is offline, fall back to the commander so the
+        # lane doesn't stall silently on a 'ready_for_review' checkpoint.
+        if not triggered_reviewer and commander:
+            _trigger_lane_agent(
+                commander,
+                channel,
+                notice=(
+                    f"Lane review fallback in #{channel}: reviewer `{reviewer}` unavailable; "
+                    f"item `{item_text}` is awaiting review."
+                ),
+                prompt=(
+                    f"use mcp to read #{channel}. Review fallback: backlog item `{item_text}` is "
+                    f"ready for review but reviewer `{reviewer}` is offline. Either reassign to an "
+                    "available reviewer (and re-record via chat_set_lane_backlog), perform the "
+                    "review yourself, or escalate to the human with the missing decision."
+                ),
+            )
     elif state == "needs_fix" and worker:
         _trigger_lane_agent(
             worker,
@@ -1088,6 +1116,10 @@ def chat_resync(
     if err:
         return err
     ch = channel if channel else None
+    if sender and ch:
+        with _last_read_lock:
+            _last_read_channel[sender] = ch
+            _last_read_job_id.pop(sender, None)
     msgs = store.get_recent(limit, channel=ch)
     _update_cursor(sender, msgs, ch)
     serialized = _serialize_messages(msgs)
