@@ -332,6 +332,9 @@ function _sidebarConfirmDelete(name, row, label) {
 
 function switchChannel(name) {
     if (name === window.activeChannel) return;
+    if (window.markActiveChannelReadThroughLatestVisible) {
+        window.markActiveChannelReadThroughLatestVisible();
+    }
     // Save top-visible message ID for current channel
     const topId = _getTopVisibleMsgId();
     if (topId) _channelScrollMsg[window.activeChannel] = topId;
@@ -354,6 +357,7 @@ function switchChannel(name) {
         const el = document.querySelector(`.message[data-id="${savedId}"]`);
         if (el) { el.scrollIntoView({ block: 'start' }); return; }
     }
+    if (window.restoreChannelStartPosition && window.restoreChannelStartPosition(name)) return;
     window.scrollToBottom();
 }
 

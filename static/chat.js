@@ -29,6 +29,7 @@ let agentHats = {};  // { agent_name: svg_string }
 window.customRoles = [];  // saved custom roles from settings
 let colorOverrides = JSON.parse(localStorage.getItem('agentchattr-color-overrides') || '{}');
 let schedulesList = [];  // array of schedule objects from server
+const READ_CURSOR_PREFIX = 'agentchattr-read-cursor:';
 
 // Expose globals that extracted modules (sessions.js, jobs.js) read via window.*
 // Using defineProperty so live values are always returned.
@@ -50,6 +51,107 @@ Object.defineProperty(window, '_lastMentionedAgent', {
     get() { return _lastMentionedAgent; },
     set(v) { _lastMentionedAgent = v; },
 });
+
+function getReadCursorKey(channel) {
+    return READ_CURSOR_PREFIX + (channel || 'general');
+}
+
+function getReadCursor(channel) {
+    try {
+        const raw = localStorage.getItem(getReadCursorKey(channel));
+        if (raw === null) return null;
+        const value = Number.parseInt(raw, 10);
+        return Number.isFinite(value) ? value : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function markChannelReadThrough(channel, msgId) {
+    const value = Number.parseInt(msgId, 10);
+    if (!Number.isFinite(value)) return;
+    const current = getReadCursor(channel);
+    if (current !== null && current >= value) return;
+    try {
+        localStorage.setItem(getReadCursorKey(channel), String(value));
+    } catch (e) {}
+}
+
+function isReadableMessageEl(el, channel) {
+    if (!el || !el.dataset || !el.dataset.id) return false;
+    if ((el.dataset.channel || 'general') !== (channel || 'general')) return false;
+    if (el.style.display === 'none') return false;
+    return !el.classList.contains('join-msg');
+}
+
+function getLatestVisibleMessageId(channel = activeChannel) {
+    const timeline = document.getElementById('timeline');
+    const container = document.getElementById('messages');
+    if (!timeline || !container) return null;
+    const viewport = timeline.getBoundingClientRect();
+    let latest = null;
+    for (const el of container.children) {
+        if (!isReadableMessageEl(el, channel)) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
+        latest = el.dataset.id;
+    }
+    return latest;
+}
+
+function getLatestChannelMessageId(channel = activeChannel) {
+    const container = document.getElementById('messages');
+    if (!container) return null;
+    let latest = null;
+    for (const el of container.children) {
+        if (!isReadableMessageEl(el, channel)) continue;
+        latest = el.dataset.id;
+    }
+    return latest;
+}
+
+function markActiveChannelReadThroughLatestVisible() {
+    const latestVisible = getLatestVisibleMessageId(activeChannel);
+    if (latestVisible !== null) {
+        markChannelReadThrough(activeChannel, latestVisible);
+    }
+}
+
+function findFirstUnreadMessageEl(channel = activeChannel) {
+    const cursor = getReadCursor(channel);
+    if (cursor === null) return null;
+    const container = document.getElementById('messages');
+    if (!container) return null;
+    for (const el of container.children) {
+        if (!isReadableMessageEl(el, channel)) continue;
+        const id = Number.parseInt(el.dataset.id, 10);
+        if (Number.isFinite(id) && id > cursor) return el;
+    }
+    return null;
+}
+
+function restoreChannelStartPosition(channel = activeChannel) {
+    const timeline = document.getElementById('timeline');
+    if (!timeline) return false;
+    const firstUnread = findFirstUnreadMessageEl(channel);
+    if (firstUnread) {
+        firstUnread.scrollIntoView({ block: 'start' });
+        const distFromBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
+        autoScroll = distFromBottom < 60;
+        markActiveChannelReadThroughLatestVisible();
+        updateScrollAnchor();
+        return true;
+    }
+    scrollToBottom();
+    return true;
+}
+
+function restoreUnreadStartPosition() {
+    return restoreChannelStartPosition(activeChannel);
+}
+
+window.restoreChannelStartPosition = restoreChannelStartPosition;
+window.markActiveChannelReadThroughLatestVisible = markActiveChannelReadThroughLatestVisible;
 
 // --- Drag-scroll for overflow containers ---
 function enableDragScroll(el) {
@@ -539,10 +641,9 @@ function connectWebSocket() {
                 if (loader) loader.classList.add('hidden');
                 filterMessagesByChannel();
                 renderChannelTabs();
-                // Ensure refresh/reconnect lands on the latest visible message.
+                // Resume at the first unread message; fall back to the bottom for first visits.
                 requestAnimationFrame(() => {
-                    autoScroll = true;
-                    scrollToBottom();
+                    restoreUnreadStartPosition();
                 });
             }
         } else if (event.type === 'typing') {
@@ -994,6 +1095,7 @@ function appendMessage(msg) {
 
     if (autoScroll) {
         scrollToBottom();
+        markChannelReadThrough(msgChannel, msg.id);
     } else {
         unreadCount++;
         updateScrollAnchor();
@@ -1058,6 +1160,8 @@ function scrollToBottom() {
     const timeline = document.getElementById('timeline');
     timeline.scrollTop = timeline.scrollHeight;
     unreadCount = 0;
+    const latest = getLatestChannelMessageId(activeChannel);
+    if (latest !== null) markChannelReadThrough(activeChannel, latest);
     updateScrollAnchor();
 }
 window.scrollToBottom = scrollToBottom;
@@ -3065,6 +3169,7 @@ function setupScroll() {
 
         if (autoScroll) {
             unreadCount = 0;
+            markActiveChannelReadThroughLatestVisible();
         }
         updateScrollAnchor();
     });
