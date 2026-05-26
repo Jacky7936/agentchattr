@@ -345,6 +345,10 @@ class WrapperLaunchArgsTest(unittest.TestCase):
         self.assertIn("Traditional Chinese", _MCP_INSTRUCTIONS)
         self.assertIn("繁體中文", _MCP_INSTRUCTIONS)
 
+    def test_mcp_instructions_reserve_all_for_human_or_commander_dispatch(self):
+        self.assertIn("@all is reserved for human or orchestrator dispatch", _MCP_INSTRUCTIONS)
+        self.assertIn("Do not use @all for presence, standby, or reclaim announcements", _MCP_INSTRUCTIONS)
+
     def test_mcp_instructions_require_structured_lane_state_before_final_reply(self):
         self.assertIn("before the final chat_send reply", _MCP_INSTRUCTIONS)
         self.assertIn("chat_update_lane_item", _MCP_INSTRUCTIONS)

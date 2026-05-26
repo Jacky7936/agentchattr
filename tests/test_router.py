@@ -134,6 +134,30 @@ class RouterMentionTests(unittest.TestCase):
 
         self.assertEqual(router.get_targets("Jacky", "continue", channel="design"), ["codex-builder"])
 
+    def test_non_commander_agent_all_mention_does_not_fan_out(self):
+        router = Router(
+            ["codex-orchestrator", "codex-builder", "codex-qa", "claude-reviewer"],
+            default_mention="none",
+            online_checker=lambda: {"codex-orchestrator", "codex-builder", "codex-qa", "claude-reviewer"},
+        )
+
+        self.assertEqual(
+            router.get_targets("claude-reviewer", "@all 已上線並 reclaim 身份", channel="general"),
+            [],
+        )
+
+    def test_commander_agent_all_mention_can_dispatch_online_roster(self):
+        router = Router(
+            ["codex-orchestrator", "codex-builder", "codex-qa", "claude-reviewer"],
+            default_mention="none",
+            online_checker=lambda: {"codex-orchestrator", "codex-builder", "codex-qa", "claude-reviewer"},
+        )
+
+        self.assertEqual(
+            router.get_targets("codex-orchestrator", "@all 請全部 agents 一起處理", channel="general"),
+            ["claude-reviewer", "codex-builder", "codex-qa"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -218,6 +218,16 @@ class CommanderLedger:
                 "note": str(note or "").strip()[:500],
                 "updated_at": ts,
             }
+            merged_agents = _clean_agents(
+                list(lane.get("active_agents") or []) + [worker, reviewer]
+            )
+            if merged_agents:
+                lane["active_agents"] = merged_agents
+                lane["progress"] = {
+                    agent: progress
+                    for agent, progress in (lane.get("progress") or {}).items()
+                    if agent in merged_agents
+                }
             lane["updated_at"] = ts
             self._append_event_locked(
                 lane,

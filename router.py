@@ -63,7 +63,7 @@ class Router:
             rf"@({alternatives})(?![\w-])", re.IGNORECASE
         )
 
-    def parse_mentions(self, text: str) -> list[str]:
+    def parse_mentions(self, text: str, *, expand_groups: bool = True) -> list[str]:
         mentions = []
 
         def add_mention(name: str):
@@ -73,6 +73,8 @@ class Router:
         for match in self._mention_re.finditer(text):
             name = match.group(1).lower()
             if name in ("both", "all"):
+                if not expand_groups:
+                    continue
                 # Only tag online agents when using @all
                 if self._online_checker:
                     online = self._online_checker()
@@ -127,6 +129,37 @@ class Router:
         ch["hop_count"] = 0
         ch["paused"] = False
         ch["guard_emitted"] = False
+        return self.get_commander_status(channel)
+
+    def merge_commander_active_agents(
+        self,
+        channel: str = "general",
+        *,
+        active_agents: list[str],
+        updated_by: str = "",
+        reason: str = "",
+        now: float | None = None,
+    ) -> dict:
+        """Add workers/reviewers to an existing commander lane without clearing progress."""
+        ctl = self._get_control(channel)
+        ts = time.time() if now is None else float(now)
+        merged = list(self._active_agents(ctl))
+        standby = ctl.get("standby", set()) or set()
+        for agent in active_agents:
+            clean = str(agent or "").lower().lstrip("@")
+            if clean and clean not in standby and clean not in merged:
+                merged.append(clean)
+        if merged:
+            ctl["locked"] = True
+            ctl["active_agent"] = merged[0]
+            ctl["active_agents"] = merged
+        if updated_by:
+            ctl["updated_by"] = updated_by
+        if reason:
+            ctl["reason"] = reason
+        ctl["updated_at"] = ts
+        ctl["watchdog_reminded_at"] = 0.0
+        ctl["watchdog_count"] = 0
         return self.get_commander_status(channel)
 
     def release_commander_lock(self, channel: str = "general", *, updated_by: str = "") -> dict:
@@ -308,9 +341,13 @@ class Router:
     def get_targets(self, sender: str, text: str, channel: str = "general") -> list[str]:
         """Determine which agents should receive this message."""
         ch = self._get_ch(channel)
-        mentions = self.parse_mentions(text)
+        sender_is_agent = self._is_agent(sender)
+        mentions = self.parse_mentions(
+            text,
+            expand_groups=not sender_is_agent or self._is_commander(sender),
+        )
 
-        if not self._is_agent(sender):
+        if not sender_is_agent:
             # Human message resets hop counter and unpauses
             ch["hop_count"] = 0
             ch["paused"] = False

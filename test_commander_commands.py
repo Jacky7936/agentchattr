@@ -308,6 +308,48 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(restored_ledger.get("general")["status"], "released")
         self.assertIn("stale", store.messages[0]["text"])
 
+    async def test_commander_restore_releases_command_only_lane_without_reconcile_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "general",
+                commander="codex-orchestrator",
+                active_agents=["codex-architect", "codex-qa"],
+                task="/handoff @codex-architect @codex-qa",
+                reason="/handoff @codex-architect @codex-qa",
+                event_type="handoff",
+                now=1000,
+            )
+            router = Router(
+                ["codex-orchestrator", "codex-architect", "codex-qa"],
+                default_mention="none",
+                max_hops=4,
+            )
+            store = FakeStore()
+            agents = FakeAgents(["codex-orchestrator", "codex-architect"])
+            registry = FakeRegistry(["codex-orchestrator", "codex-architect", "codex-qa"])
+
+            chat_app._restored_commander_lanes.clear()
+            chat_app._restore_reconcile_notified.clear()
+            with (
+                patch.object(chat_app, "router", router),
+                patch.object(chat_app, "registry", registry),
+                patch.object(chat_app, "store", store),
+                patch.object(chat_app, "agents", agents),
+                patch.object(chat_app, "commander_ledger", ledger),
+                patch.object(chat_app, "config", {"routing": {"commander_restore_max_age_seconds": 43200}}),
+                patch("mcp_bridge.is_online", side_effect=lambda name: name in {"codex-orchestrator", "codex-architect"}),
+            ):
+                restored = await chat_app._maybe_restore_commander_lanes(now=1200)
+
+            restored_ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+
+        self.assertEqual(restored, [])
+        self.assertFalse(router.get_commander_status("general")["locked"])
+        self.assertEqual(restored_ledger.get("general")["status"], "released")
+        self.assertEqual(agents.triggers, [])
+        self.assertIn("waiting for user instruction", store.messages[0]["text"])
+
     async def test_commander_watchdog_nudges_orchestrator_when_active_worker_is_quiet(self):
         router = Router(
             ["codex-orchestrator", "claude-designer", "claude-reviewer"],
@@ -416,6 +458,127 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("last progress", agents.triggers[0]["prompt"])
         self.assertIn("rendering mobile and desktop screenshots", agents.triggers[0]["prompt"])
 
+    async def test_commander_watchdog_releases_command_only_lane_without_nudging_agents(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "general",
+                commander="codex-orchestrator",
+                active_agents=["codex-architect"],
+                task="/handoff @codex-architect",
+                reason="/handoff @codex-architect",
+                event_type="handoff",
+                now=1000,
+            )
+            ledger.set_backlog(
+                "general",
+                items=["P0/P1 decision inventory and recommendation draft"],
+                created_by="codex-orchestrator",
+                worker="codex-planner",
+                reviewer="codex-architect",
+                now=1001,
+            )
+            ledger.mark_backlog_item(
+                "general",
+                state="running",
+                updated_by="codex-planner",
+                note="previous worker slice still recorded",
+                now=1002,
+            )
+            router = Router(
+                ["codex-orchestrator", "codex-planner", "codex-architect"],
+                default_mention="none",
+                max_hops=100,
+            )
+            router.set_commander_lock(
+                "general",
+                active_agents=["codex-architect"],
+                updated_by="codex-orchestrator",
+                reason="/handoff @codex-architect",
+                now=1000,
+            )
+            store = FakeStore()
+            agents = FakeAgents(["codex-orchestrator", "codex-architect"])
+
+            with (
+                patch.object(chat_app, "router", router),
+                patch.object(chat_app, "registry", None),
+                patch.object(chat_app, "store", store),
+                patch.object(chat_app, "agents", agents),
+                patch.object(chat_app, "commander_ledger", ledger),
+                patch.object(chat_app, "config", {"routing": {"commander_watchdog_seconds": 180}}),
+                patch.object(chat_app, "room_settings", {"channels": ["general"], "username": "Jacky"}),
+                patch.object(chat_app, "broadcast_status", AsyncMock()),
+            ):
+                nudges = await chat_app._run_commander_watchdog(now=1183)
+
+            restored = CommanderLedger(Path(tmp) / "commander_ledger.json")
+
+        self.assertEqual(nudges, [])
+        self.assertFalse(router.get_commander_status("general")["locked"])
+        self.assertEqual(restored.get("general")["status"], "released")
+        self.assertEqual(agents.triggers, [])
+        self.assertIn("waiting for user instruction", store.messages[0]["text"])
+
+    async def test_commander_watchdog_keeps_active_backlog_review_actionable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "general",
+                commander="codex-orchestrator",
+                active_agents=["codex-architect"],
+                task="/handoff @codex-architect",
+                reason="/handoff @codex-architect",
+                event_type="handoff",
+                now=1000,
+            )
+            ledger.set_backlog(
+                "general",
+                items=["Architecture review of P0/P1 recommendation draft"],
+                created_by="codex-orchestrator",
+                worker="codex-planner",
+                reviewer="codex-architect",
+                now=1001,
+            )
+            ledger.mark_backlog_item(
+                "general",
+                state="ready_for_review",
+                updated_by="codex-planner",
+                note="ready for architect review",
+                now=1002,
+            )
+            router = Router(
+                ["codex-orchestrator", "codex-planner", "codex-architect"],
+                default_mention="none",
+                max_hops=100,
+            )
+            router.set_commander_lock(
+                "general",
+                active_agents=["codex-architect"],
+                updated_by="codex-orchestrator",
+                reason="/handoff @codex-architect",
+                now=1000,
+            )
+            store = FakeStore()
+            agents = FakeAgents(["codex-orchestrator", "codex-architect"])
+
+            with (
+                patch.object(chat_app, "router", router),
+                patch.object(chat_app, "registry", None),
+                patch.object(chat_app, "store", store),
+                patch.object(chat_app, "agents", agents),
+                patch.object(chat_app, "commander_ledger", ledger),
+                patch.object(chat_app, "config", {"routing": {"commander_watchdog_seconds": 180}}),
+                patch.object(chat_app, "room_settings", {"channels": ["general"], "username": "Jacky"}),
+                patch.object(chat_app, "broadcast_status", AsyncMock()),
+            ):
+                nudges = await chat_app._run_commander_watchdog(now=1183)
+
+        self.assertEqual(nudges, ["general"])
+        self.assertTrue(router.get_commander_status("general")["locked"])
+        self.assertEqual(len(agents.triggers), 1)
+        self.assertIn("handoff/ETA", agents.triggers[0]["prompt"])
+
     async def test_chat_report_progress_updates_router_and_ledger(self):
         with tempfile.TemporaryDirectory() as tmp:
             ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
@@ -454,6 +617,113 @@ class CommanderCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('"ok": true', result)
         self.assertEqual(router.get_commander_status("general")["worker_progress"]["codex-builder"]["state"], "running")
         self.assertEqual(restored.get("general")["progress"]["codex-builder"]["note"], "unit tests running")
+
+    async def test_chat_set_lane_backlog_adds_worker_and_reviewer_to_active_lane(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "general",
+                commander="codex-orchestrator",
+                active_agents=["codex-planner"],
+                task="Patch implementation plan",
+                reason="/handoff @codex-planner",
+                now=1000,
+            )
+            router = Router(
+                ["codex-orchestrator", "codex-planner", "codex-architect"],
+                default_mention="none",
+                max_hops=100,
+            )
+            router.set_commander_lock(
+                "general",
+                active_agents=["codex-planner"],
+                updated_by="codex-orchestrator",
+                reason="/handoff @codex-planner",
+                now=1000,
+            )
+
+            with (
+                patch.object(mcp_bridge, "router", router),
+                patch.object(mcp_bridge, "commander_ledger", ledger),
+                patch.object(mcp_bridge, "store", FakeStore()),
+                patch.object(mcp_bridge, "registry", None),
+            ):
+                result = mcp_bridge.chat_set_lane_backlog(
+                    sender="codex-orchestrator",
+                    items="Patch plan\nFocused re-review",
+                    worker="codex-planner",
+                    reviewer="codex-architect",
+                    channel="general",
+                )
+
+            restored = CommanderLedger(Path(tmp) / "commander_ledger.json")
+
+        self.assertIn('"ok": true', result)
+        self.assertEqual(
+            router.get_commander_status("general")["active_agents"],
+            ["codex-planner", "codex-architect"],
+        )
+        self.assertEqual(
+            restored.get("general")["active_agents"],
+            ["codex-planner", "codex-architect"],
+        )
+
+    async def test_commander_watchdog_counts_recent_ledger_backlog_update_as_activity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = CommanderLedger(Path(tmp) / "commander_ledger.json")
+            ledger.start_lane(
+                "general",
+                commander="codex-orchestrator",
+                active_agents=["codex-planner"],
+                task="Patch implementation plan",
+                reason="/handoff @codex-planner",
+                now=1000,
+            )
+            ledger.set_backlog(
+                "general",
+                items=["Patch docs/superpowers/plans/infra.md"],
+                created_by="codex-orchestrator",
+                worker="codex-planner",
+                reviewer="codex-architect",
+                now=1001,
+            )
+            ledger.mark_backlog_item(
+                "general",
+                state="running",
+                updated_by="codex-planner",
+                note="editing the plan",
+                now=1170,
+            )
+            router = Router(
+                ["codex-orchestrator", "codex-planner", "codex-architect"],
+                default_mention="none",
+                max_hops=100,
+            )
+            router.set_commander_lock(
+                "general",
+                active_agents=["codex-planner"],
+                updated_by="codex-orchestrator",
+                reason="/handoff @codex-planner",
+                now=1000,
+            )
+            store = FakeStore()
+            agents = FakeAgents(["codex-orchestrator", "codex-planner"])
+
+            with (
+                patch.object(chat_app, "router", router),
+                patch.object(chat_app, "registry", None),
+                patch.object(chat_app, "store", store),
+                patch.object(chat_app, "agents", agents),
+                patch.object(chat_app, "commander_ledger", ledger),
+                patch.object(chat_app, "config", {"routing": {"commander_watchdog_seconds": 180}}),
+                patch.object(chat_app, "room_settings", {"channels": ["general"], "username": "Jacky"}),
+                patch.object(chat_app, "broadcast_status", AsyncMock()),
+            ):
+                nudges = await chat_app._run_commander_watchdog(now=1200)
+
+        self.assertEqual(nudges, [])
+        self.assertEqual(store.messages, [])
+        self.assertEqual(agents.triggers, [])
 
     async def test_status_snapshot_includes_active_lane_task_goal_and_backlog(self):
         with tempfile.TemporaryDirectory() as tmp:
