@@ -183,3 +183,26 @@ def test_cockpit_js_uses_text_content():
         "renderer must use textContent for safe DOM construction"
     assert "createElement" in js, \
         "renderer must build elements with createElement"
+
+
+def test_cockpit_css_briefing_mode():
+    css = _read("static/cockpit.css")
+    assert "body.cockpit-briefing" in css, "missing body.cockpit-briefing toggle"
+    assert ".cockpit-briefing-form" in css, "missing briefing form container"
+
+
+def test_cockpit_css_briefing_components():
+    css = _read("static/cockpit.css")
+    for sel in [
+        ".cockpit-title-input",
+        ".cockpit-objective",
+        ".setup-card",
+        ".agent-chip",
+        ".agent-chip-on",
+        ".deliv-item",
+        ".budgets",
+        ".budget",
+        ".go-bar",
+        ".go-launch",
+    ]:
+        assert sel in css, f"missing briefing component {sel}"
