@@ -286,7 +286,22 @@ body.cockpit-active::before {
   padding: 20px 24px 14px;
   overflow-y: auto;
   display: flex; flex-direction: column; gap: 14px;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 220px;
+}
+.cockpit-transcript::-webkit-scrollbar { width: 0; height: 0; display: none; }
+.cockpit-transcript { scrollbar-width: none; -ms-overflow-style: none; }
+/* When no messages yet, show an empty-state hint inside the transcript */
+#cockpit-messages:empty::before {
+  content: 'no messages in this channel yet — mission kickoff will appear here once launched';
+  display: block;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  padding: 32px 16px;
 }
 .cockpit-transcript-head {
   display: flex; justify-content: space-between; align-items: center;
