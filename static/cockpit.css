@@ -61,7 +61,7 @@
 }
 
 /* Fallback when backdrop-filter is unsupported or prefers-reduced-transparency */
-@supports not (backdrop-filter: blur(1px)) and not (-webkit-backdrop-filter: blur(1px)) {
+@supports (not (backdrop-filter: blur(1px))) and (not (-webkit-backdrop-filter: blur(1px))) {
   .glass { background: var(--canvas); }
 }
 @media (prefers-reduced-transparency: reduce) {
