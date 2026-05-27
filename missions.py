@@ -123,6 +123,7 @@ class MissionStore:
             return [dict(m) for m in self._missions]
 
     def update_status(self, mission_id: str, status: str) -> dict | None:
+        mission = None
         with self._lock:
             for m in self._missions:
                 if m["id"] == mission_id:
@@ -133,6 +134,7 @@ class MissionStore:
                         m["completed_at"] = time.time()
                     self._save()
                     mission = dict(m)
-                    self._fire("update", mission)
-                    return mission
-        return None
+                    break
+        if mission is not None:
+            self._fire("update", mission)
+        return mission
