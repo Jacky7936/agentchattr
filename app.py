@@ -3010,6 +3010,23 @@ async def create_mission(request: Request):
     return missions.get(mission["id"])
 
 
+@app.get("/api/missions")
+async def list_missions():
+    if missions is None:
+        raise HTTPException(status_code=503, detail="server not configured")
+    return missions.list_all()
+
+
+@app.get("/api/missions/{mission_id}")
+async def get_mission(mission_id: str):
+    if missions is None:
+        raise HTTPException(status_code=503, detail="server not configured")
+    m = missions.get(mission_id)
+    if m is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+    return m
+
+
 @app.post("/api/jobs")
 async def create_job(request: Request):
     """Create a new job."""

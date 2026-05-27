@@ -63,3 +63,34 @@ def test_create_mission_requires_crew(client):
     c, _ = client
     r = c.post("/api/missions", json=_briefing_payload(crew=[]))
     assert r.status_code == 400
+
+
+def test_list_missions_empty(client):
+    c, _ = client
+    r = c.get("/api/missions")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_list_missions_after_create(client):
+    c, _ = client
+    c.post("/api/missions", json=_briefing_payload(title="A"))
+    c.post("/api/missions", json=_briefing_payload(title="B"))
+    r = c.get("/api/missions")
+    assert r.status_code == 200
+    titles = [m["title"] for m in r.json()]
+    assert titles == ["A", "B"]
+
+
+def test_get_mission_by_id(client):
+    c, _ = client
+    created = c.post("/api/missions", json=_briefing_payload(title="solo")).json()
+    r = c.get(f"/api/missions/{created['id']}")
+    assert r.status_code == 200
+    assert r.json()["title"] == "solo"
+
+
+def test_get_mission_404_for_unknown(client):
+    c, _ = client
+    r = c.get("/api/missions/mission-999")
+    assert r.status_code == 404
