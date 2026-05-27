@@ -299,6 +299,124 @@ html[data-theme="light"] body:not(.cockpit-active) #rules-list::-webkit-scrollba
   background: transparent;
 }
 
+/* ============ Topbar icon buttons (.settings-btn) ============ */
+html[data-theme="light"] body:not(.cockpit-active) .settings-btn {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--glass-stroke-dark);
+  border-radius: 10px;
+  color: var(--ink-3);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 1px 2px rgba(17, 17, 17, 0.02);
+  transition: all 160ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) .settings-btn:hover {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  border-color: var(--ink-4);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 4px 12px rgba(17, 17, 17, 0.06);
+}
+html[data-theme="light"] body:not(.cockpit-active) .settings-btn.danger-action:hover {
+  background: var(--sem-stop-bg);
+  color: var(--sem-stop);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+html[data-theme="light"] body:not(.cockpit-active) .settings-btn.theme-toggle-btn {
+  border-color: var(--glass-stroke-dark);
+}
+
+/* Notification badges (jobs, rules, agent-work) — small glass red */
+html[data-theme="light"] body:not(.cockpit-active) .jobs-badge,
+html[data-theme="light"] body:not(.cockpit-active) .rules-badge,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-badge {
+  background: var(--sem-stop);
+  color: white;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 8px rgba(239, 68, 68, 0.45);
+}
+
+/* ============ Agent status pills (#agent-status row) ============ */
+html[data-theme="light"] body:not(.cockpit-active) #agent-status {
+  padding: 0 8px;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .status-pill {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 1px 2px rgba(17, 17, 17, 0.03),
+    0 6px 18px rgba(17, 17, 17, 0.04);
+  padding: 6px 12px 6px 6px;
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .status-pill:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--ink-4);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    0 8px 24px rgba(17, 17, 17, 0.08);
+}
+
+/* Avatar circle preserves per-agent color (set inline by chat.js as --agent-color) */
+html[data-theme="light"] body:not(.cockpit-active) .status-pill .status-avatar.avatar {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 1px rgba(17, 17, 17, 0.04),
+    0 0 12px var(--agent-color, transparent);
+}
+
+/* Name uses the regular sans, role uses mono — keeps the editorial contrast */
+html[data-theme="light"] body:not(.cockpit-active) .status-pill .status-label,
+html[data-theme="light"] body:not(.cockpit-active) .status-pill .ap-name {
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+html[data-theme="light"] body:not(.cockpit-active) .status-pill .ap-role,
+html[data-theme="light"] body:not(.cockpit-active) .status-pill .role-label,
+html[data-theme="light"] body:not(.cockpit-active) .status-pill .status-role {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* Status dot — slightly brighter glow per state */
+html[data-theme="light"] body:not(.cockpit-active) .status-pill.available .status-dot {
+  background: var(--sem-go);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 8px var(--sem-go);
+}
+html[data-theme="light"] body:not(.cockpit-active) .status-pill.working .status-dot {
+  background: var(--sem-hold);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 8px var(--sem-hold);
+}
+html[data-theme="light"] body:not(.cockpit-active) .status-pill.offline .status-dot {
+  background: var(--ink-4);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+}
+
+/* Working-state spinning ring takes the agent's color via existing CSS var */
+html[data-theme="light"] body:not(.cockpit-active) .status-pill.working {
+  border-color: color-mix(in oklch, var(--agent-color, var(--sem-hold)) 60%, transparent);
+}
+
 /* ============ Reduced-transparency fallback ============ */
 @media (prefers-reduced-transparency: reduce) {
   html[data-theme="light"] body:not(.cockpit-active) header.topbar,
@@ -311,7 +429,9 @@ html[data-theme="light"] body:not(.cockpit-active) #rules-list::-webkit-scrollba
   html[data-theme="light"] body:not(.cockpit-active) #rules-panel,
   html[data-theme="light"] body:not(.cockpit-active) #pins-panel,
   html[data-theme="light"] body:not(.cockpit-active) #agent-work-panel,
-  html[data-theme="light"] body:not(.cockpit-active) .chat-bubble {
+  html[data-theme="light"] body:not(.cockpit-active) .chat-bubble,
+  html[data-theme="light"] body:not(.cockpit-active) .status-pill,
+  html[data-theme="light"] body:not(.cockpit-active) .settings-btn {
     background: var(--canvas);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
