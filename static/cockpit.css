@@ -586,3 +586,164 @@ body.cockpit-active-mission #cockpit-agent-tiles { display: grid; }
   text-transform: uppercase; letter-spacing: 0.16em;
   color: var(--sem-hold);
 }
+
+/* ============ Post-flight ============ */
+body.cockpit-post-flight .cockpit-standby,
+body.cockpit-post-flight .cockpit-briefing-form,
+body.cockpit-post-flight .cockpit-active-head,
+body.cockpit-post-flight #cockpit-agent-tiles { display: none !important; }
+
+.cockpit-post-flight { display: none; }
+body.cockpit-post-flight .cockpit-post-flight {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 14px;
+}
+
+.post-flight-headline {
+  padding: 24px 26px;
+  border-radius: 18px;
+  border: 1px solid var(--glass-stroke);
+  background: var(--glass-bg);
+  backdrop-filter: blur(36px) saturate(220%);
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 12px 36px rgba(17, 17, 17, 0.06);
+  display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end;
+}
+.post-flight-headline .label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--sem-go);
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.post-flight-headline .label::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--sem-go); box-shadow: 0 0 10px var(--sem-go);
+}
+.post-flight-headline h1 {
+  font-family: var(--sans); font-weight: 600;
+  font-size: clamp(28px, 4vw, 38px);
+  letter-spacing: -0.03em; line-height: 1.05; color: var(--ink);
+}
+.post-flight-headline .sub {
+  font-size: 13.5px; color: var(--ink-3); margin-top: 8px; max-width: 560px; line-height: 1.6;
+}
+.post-flight-stats { display: flex; gap: 22px; align-items: baseline; }
+.post-flight-stats .stat .num {
+  font-family: var(--mono); font-size: 26px; font-weight: 500;
+  letter-spacing: -0.02em; color: var(--ink); display: block; line-height: 1;
+}
+.post-flight-stats .stat .lbl {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-4); margin-top: 6px; display: block;
+}
+
+.post-flight-section-head {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--ink-3); margin: 8px 6px 4px;
+}
+
+.deliverables-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px;
+}
+.deliv-row {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-stroke);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(32px) saturate(220%);
+  box-shadow: inset 0 1.5px 0 var(--glass-edge), 0 4px 16px rgba(17, 17, 17, 0.03);
+  display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center;
+  cursor: pointer; transition: all 160ms ease;
+}
+.deliv-row .deliv-check {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; flex-shrink: 0;
+  background: rgba(17, 17, 17, 0.04); color: var(--ink-4);
+  border: 1px solid var(--hair);
+}
+.deliv-row.pass .deliv-check {
+  background: var(--sem-go-bg); color: var(--sem-go);
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.deliv-row.fail .deliv-check {
+  background: var(--sem-stop-bg); color: var(--sem-stop);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.deliv-row .deliv-title {
+  font-size: 13.5px; font-weight: 500; color: var(--ink); line-height: 1.4;
+}
+.deliv-row .deliv-meta {
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+  margin-top: 4px; letter-spacing: 0.02em;
+}
+
+.decisions-timeline {
+  padding: 18px 22px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-stroke);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(36px) saturate(220%);
+  box-shadow: inset 0 1.5px 0 var(--glass-edge), 0 8px 24px rgba(17, 17, 17, 0.04);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tl-item {
+  display: grid; grid-template-columns: 90px 12px 1fr; gap: 10px;
+  align-items: baseline; padding: 8px 0;
+}
+.tl-time {
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-4);
+  letter-spacing: 0.02em; text-align: right;
+}
+.tl-bullet {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--ink-4); border: 2px solid white;
+  box-shadow: 0 0 0 1px var(--hair); margin-top: 3px;
+}
+.tl-bullet.intervention { background: var(--sem-hold); box-shadow: 0 0 0 1px rgba(245,158,11,0.4), 0 0 8px var(--sem-hold); }
+.tl-bullet.complete     { background: var(--sem-go);   box-shadow: 0 0 0 1px rgba(16,185,129,0.4), 0 0 8px var(--sem-go); }
+.tl-body { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+
+.post-flight-actions {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 16px 22px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-stroke);
+  background: var(--glass-bg);
+  backdrop-filter: blur(36px) saturate(220%);
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 12px 36px rgba(17, 17, 17, 0.06);
+}
+.post-flight-actions .meta {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em;
+}
+.post-flight-actions .btns { display: flex; gap: 10px; }
+.btn-action {
+  appearance: none; font-family: var(--sans); font-size: 12px; font-weight: 600;
+  padding: 9px 16px; border-radius: 10px; border: 1px solid var(--hair);
+  background: white; color: var(--ink-2); cursor: pointer;
+  transition: all 160ms ease; letter-spacing: 0.01em;
+}
+.btn-action:hover { border-color: var(--ink-3); color: var(--ink); }
+.btn-ship {
+  background: linear-gradient(180deg, #14B782 0%, #0EA371 100%);
+  color: white; border-color: transparent;
+  box-shadow:
+    0 1px 2px rgba(16, 185, 129, 0.4),
+    0 8px 24px rgba(16, 185, 129, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.btn-ship:hover { border-color: transparent; color: white; }
+
+.complete-mission-btn {
+  appearance: none; font-family: var(--sans); font-size: 11px; font-weight: 600;
+  padding: 6px 12px; border-radius: 8px; border: 1px solid var(--sem-go);
+  background: var(--sem-go-bg); color: var(--sem-go); cursor: pointer;
+  margin-left: 10px;
+}
+.complete-mission-btn:hover { background: var(--sem-go); color: white; }

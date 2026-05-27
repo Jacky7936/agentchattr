@@ -279,3 +279,12 @@ def test_cockpit_js_intervention_actions():
 def test_cockpit_js_safe_dom_invariant():
     js = _read("static/cockpit.js")
     assert "innerHTML" not in js
+
+
+def test_cockpit_css_post_flight():
+    css = _read("static/cockpit.css")
+    assert "body.cockpit-post-flight" in css, "missing post-flight toggle"
+    for sel in [".post-flight-headline", ".deliv-row", ".deliv-row.pass",
+                ".deliv-row.fail", ".decisions-timeline", ".tl-item",
+                ".post-flight-actions", ".btn-ship"]:
+        assert sel in css, f"missing post-flight component {sel}"
