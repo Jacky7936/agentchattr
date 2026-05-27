@@ -138,3 +138,38 @@ class MissionStore:
         if mission is not None:
             self._fire("update", mission)
         return mission
+
+    def append_decision(self, mission_id: str, *, type: str, agent: str = "",
+                        body: str = "") -> dict | None:
+        decision = {
+            "ts": time.time(),
+            "type": type,
+            "agent": agent,
+            "body": body,
+        }
+        mission = None
+        with self._lock:
+            for m in self._missions:
+                if m["id"] == mission_id:
+                    m.setdefault("decisions", []).append(decision)
+                    self._save()
+                    mission = dict(m)
+                    break
+        if mission is not None:
+            self._fire("update", mission)
+        return decision if mission is not None else None
+
+    def set_deliverable_met(self, mission_id: str, index: int, met: bool) -> dict | None:
+        mission = None
+        with self._lock:
+            for m in self._missions:
+                if m["id"] == mission_id:
+                    deliverables = m.get("deliverables") or []
+                    if 0 <= index < len(deliverables):
+                        deliverables[index]["met"] = bool(met)
+                        self._save()
+                        mission = dict(m)
+                    break
+        if mission is not None:
+            self._fire("update", mission)
+        return mission

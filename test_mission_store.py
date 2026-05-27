@@ -76,3 +76,47 @@ def test_app_imports_mission_store():
         "app.py missing module-level `missions: MissionStore | None`"
     assert "MissionStore(str(missions_path))" in src, \
         "app.py missing MissionStore init in configure()"
+
+
+def test_append_decision():
+    import tempfile
+    from pathlib import Path
+    from missions import MissionStore
+    with tempfile.TemporaryDirectory() as tmp:
+        store = MissionStore(str(Path(tmp) / "missions.json"))
+        m = store.create(title="x", objective="", crew=[{"agent": "codex"}],
+                         reviewer="", deliverables=[], eta_minutes=0,
+                         hop_budget=0, auto_pause_blockers=0)
+        d = store.append_decision(m["id"], type="intervention",
+                                  agent="codex", body="human · froze codex")
+        assert d is not None
+        updated = store.get(m["id"])
+        assert len(updated["decisions"]) == 1
+        assert updated["decisions"][0]["type"] == "intervention"
+        assert updated["decisions"][0]["agent"] == "codex"
+        assert "froze" in updated["decisions"][0]["body"]
+        assert isinstance(updated["decisions"][0].get("ts"), (int, float))
+
+
+def test_set_deliverable_met():
+    import tempfile
+    from pathlib import Path
+    from missions import MissionStore
+    with tempfile.TemporaryDirectory() as tmp:
+        store = MissionStore(str(Path(tmp) / "missions.json"))
+        m = store.create(title="x", objective="", crew=[],
+                         reviewer="", eta_minutes=0, hop_budget=0,
+                         auto_pause_blockers=0,
+                         deliverables=[
+                             {"text": "a", "required": True},
+                             {"text": "b", "required": False},
+                         ])
+        updated = store.set_deliverable_met(m["id"], 0, True)
+        assert updated["deliverables"][0]["met"] is True
+        updated2 = store.set_deliverable_met(m["id"], 1, True)
+        assert updated2["deliverables"][1]["met"] is True
+        again = store.set_deliverable_met(m["id"], 0, True)
+        assert again["deliverables"][0]["met"] is True
+        off = store.set_deliverable_met(m["id"], 0, False)
+        assert off["deliverables"][0]["met"] is False
+        assert store.set_deliverable_met(m["id"], 99, True) is None
