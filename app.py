@@ -3004,6 +3004,39 @@ async def trigger_agent_silent(request: Request):
     return {"ok": True, "triggered": targets}
 
 
+def _build_mission_kickoff_text(mission: dict) -> str:
+    crew_mentions = " ".join(f"@{m.get('agent', '').strip()}"
+                             for m in mission.get("crew", [])
+                             if m.get("agent"))
+    lines = [
+        f"{crew_mentions} Mission {mission['id']} briefing",
+        "",
+        f"**Title:** {mission['title']}",
+    ]
+    obj = (mission.get("objective") or "").strip()
+    if obj:
+        lines += ["", f"**Objective:** {obj}"]
+    deliverables = mission.get("deliverables") or []
+    required = [d for d in deliverables if d.get("required")]
+    if required:
+        lines += ["", "**Deliverables (required):**"]
+        for d in required:
+            lines.append(f"- {d.get('text', '').strip()}")
+    reviewer = (mission.get("reviewer") or "").strip()
+    if reviewer:
+        lines += ["", f"**Reviewer:** @{reviewer}"]
+    eta = int(mission.get("eta_minutes") or 0)
+    hops = int(mission.get("hop_budget") or 0)
+    if eta or hops:
+        budgets = []
+        if eta:
+            budgets.append(f"ETA {eta}m")
+        if hops:
+            budgets.append(f"hop budget {hops}")
+        lines += ["", f"**Budgets:** {' · '.join(budgets)}"]
+    return "\n".join(lines)
+
+
 @app.post("/api/missions", status_code=201)
 async def create_mission(request: Request):
     if missions is None:
@@ -3031,9 +3064,17 @@ async def create_mission(request: Request):
         auto_pause_blockers=int(body.get("auto_pause_blockers") or 0),
     )
 
-    # Transition briefing → active (Task 6 will also post the kickoff message).
+    # Transition briefing → active and post kickoff message.
     missions.update_status(mission["id"], "active")
-    return missions.get(mission["id"])
+    active_mission = missions.get(mission["id"])
+    if store is not None:
+        kickoff_text = _build_mission_kickoff_text(active_mission)
+        store.add(
+            sender="user",
+            text=kickoff_text,
+            channel=active_mission["transcript_channel_id"],
+        )
+    return active_mission
 
 
 @app.get("/api/missions")

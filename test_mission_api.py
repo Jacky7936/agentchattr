@@ -103,3 +103,16 @@ def test_mission_create_broadcasts(client):
     body = c.post("/api/missions", json=_briefing_payload(title="bcast")).json()
     assert ("create", body["id"]) in events
     assert ("update", body["id"]) in events  # status transition to active
+
+
+def test_launch_posts_kickoff_message(client):
+    c, app_module = client
+    body = c.post("/api/missions", json=_briefing_payload(title="Kickoff")).json()
+    channel = body["transcript_channel_id"]
+    msgs = c.get(f"/api/messages?channel={channel}").json()
+    assert isinstance(msgs, list) and len(msgs) >= 1
+    kickoff = msgs[0]
+    assert "@codex" in kickoff["text"]
+    assert "@claude" in kickoff["text"]
+    assert "Kickoff" in kickoff["text"] or "Replace JWT" in kickoff["text"]
+    assert kickoff.get("sender") in ("system", "human", "user")
