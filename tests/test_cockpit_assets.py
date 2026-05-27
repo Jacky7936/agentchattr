@@ -299,3 +299,19 @@ def test_index_has_post_flight_markup():
     assert 'id="cockpit-complete-btn"' in html
     assert 'cockpitCompleteMission()' in html
     assert 'cockpitDownloadReport()' in html
+
+
+def test_cockpit_js_post_flight():
+    js = _read("static/cockpit.js")
+    assert "cockpit-post-flight" in js, "must toggle body.cockpit-post-flight"
+    assert "cockpitCompleteMission" in js, "must expose cockpitCompleteMission"
+    assert "cockpitDownloadReport" in js, "must expose cockpitDownloadReport"
+    assert "cockpitArchiveMission" in js, "must expose cockpitArchiveMission"
+    assert "/api/missions/" in js
+    assert "/complete" in js or "complete'" in js
+    assert "/report" in js
+
+
+def test_cockpit_js_post_flight_safe_dom():
+    js = _read("static/cockpit.js")
+    assert "innerHTML" not in js

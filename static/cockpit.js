@@ -646,3 +646,262 @@
     bootstrapActiveMission();
   }
 })();
+
+/* Post-flight flow — appended in Slice 4.
+ * When a mission status becomes 'complete', switches cockpit to post-flight view:
+ * headline + stats + deliverables grid + decisions timeline + actions bar.
+ * Accept & download generates a markdown report client-side from /api/missions/{id}/report.
+ * Safe DOM only: createElement + textContent.
+ */
+(function () {
+  const cockpit = window.__cockpit;
+  if (!cockpit) return;
+
+  let activeMissionId = null;
+  let postFlightReport = null;
+
+  function token() { return window.__SESSION_TOKEN__ || ''; }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({}, opts.headers || {}, { 'x-session-token': token() });
+    if (opts.body && !opts.headers['Content-Type']) opts.headers['Content-Type'] = 'application/json';
+    return fetch(path, opts);
+  }
+
+  try {
+    if (window.Hub && typeof window.Hub.on === 'function') {
+      window.Hub.on('mission', function (event) {
+        const mission = event && (event.data || event.mission);
+        if (!mission) return;
+        if (mission.status === 'active') activeMissionId = mission.id;
+        else if (mission.status === 'complete' || mission.status === 'failed') {
+          if (mission.id === activeMissionId) loadPostFlight(mission.id);
+        }
+      });
+    }
+  } catch (e) {}
+
+  function fmtDuration(seconds) {
+    seconds = Math.max(0, Math.floor(seconds || 0));
+    if (seconds < 60) return seconds + 's';
+    const m = Math.floor(seconds / 60);
+    if (m < 60) return m + 'm';
+    const h = Math.floor(m / 60);
+    return h + 'h ' + (m % 60) + 'm';
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return '';
+    try {
+      const d = new Date(ts * 1000);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+
+  function renderStats(rep) {
+    const host = document.getElementById('cockpit-post-flight-stats');
+    if (!host) return;
+    while (host.firstChild) host.removeChild(host.firstChild);
+    const items = [
+      { num: fmtDuration(rep.stats.duration_seconds), lbl: 'Total' },
+      { num: String(rep.stats.interventions), lbl: 'Interv.' },
+      { num: rep.stats.deliverables_met + '/' + rep.stats.deliverables_total, lbl: 'Met' },
+      { num: String(rep.stats.crew_count), lbl: 'Crew' },
+    ];
+    items.forEach(function (it) {
+      const stat = document.createElement('div');
+      stat.className = 'stat';
+      const num = document.createElement('span');
+      num.className = 'num';
+      num.textContent = it.num;
+      stat.appendChild(num);
+      const lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = it.lbl;
+      stat.appendChild(lbl);
+      host.appendChild(stat);
+    });
+  }
+
+  function renderDeliverables(rep) {
+    const host = document.getElementById('cockpit-post-flight-deliverables');
+    if (!host) return;
+    while (host.firstChild) host.removeChild(host.firstChild);
+    (rep.deliverables || []).forEach(function (d, idx) {
+      const row = document.createElement('div');
+      row.className = 'deliv-row' + (d.met ? ' pass' : (d.required ? '' : ' skip'));
+      row.title = 'Click to toggle';
+      row.addEventListener('click', function () {
+        toggleDeliverable(rep.mission_id, idx, !d.met);
+      });
+
+      const chk = document.createElement('div');
+      chk.className = 'deliv-check';
+      chk.textContent = d.met ? '✓' : (d.required ? '·' : '−');
+      row.appendChild(chk);
+
+      const body = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'deliv-title';
+      title.textContent = d.text || '';
+      body.appendChild(title);
+      const meta = document.createElement('div');
+      meta.className = 'deliv-meta';
+      meta.textContent = d.required ? 'required' : 'optional';
+      body.appendChild(meta);
+      row.appendChild(body);
+
+      host.appendChild(row);
+    });
+  }
+
+  function renderDecisions(rep) {
+    const host = document.getElementById('cockpit-post-flight-decisions');
+    if (!host) return;
+    while (host.firstChild) host.removeChild(host.firstChild);
+    (rep.decisions || []).forEach(function (d) {
+      const item = document.createElement('div');
+      item.className = 'tl-item';
+      const tm = document.createElement('span');
+      tm.className = 'tl-time';
+      tm.textContent = fmtTime(d.ts);
+      item.appendChild(tm);
+      const bul = document.createElement('span');
+      bul.className = 'tl-bullet ' + (d.type || '');
+      item.appendChild(bul);
+      const body = document.createElement('div');
+      body.className = 'tl-body';
+      body.textContent = d.body || d.type || '';
+      item.appendChild(body);
+      host.appendChild(item);
+    });
+  }
+
+  function renderHeadlineMeta(rep) {
+    const titleEl = document.getElementById('cockpit-post-flight-title');
+    if (titleEl) titleEl.textContent = rep.title ? ('Mission complete — ' + rep.title) : 'Mission complete';
+    const subEl = document.getElementById('cockpit-post-flight-sub');
+    if (subEl) {
+      const s = rep.stats;
+      subEl.textContent = s.deliverables_met + ' of ' + s.deliverables_total +
+        ' deliverables met · ' + s.interventions + ' interventions · ' +
+        s.crew_count + ' crew · ' + fmtDuration(s.duration_seconds);
+    }
+    const meta = document.getElementById('cockpit-post-flight-meta');
+    if (meta) {
+      const required = rep.stats.deliverables_required;
+      const met = rep.stats.deliverables_met;
+      meta.textContent = (met >= required ? 'Ready to ship' : 'Required deliverables incomplete') +
+        ' · ' + met + '/' + rep.stats.deliverables_total;
+    }
+  }
+
+  function renderPostFlight(rep) {
+    postFlightReport = rep;
+    document.body.classList.remove('cockpit-active-mission');
+    document.body.classList.add('cockpit-post-flight');
+    renderHeadlineMeta(rep);
+    renderStats(rep);
+    renderDeliverables(rep);
+    renderDecisions(rep);
+  }
+
+  async function loadPostFlight(missionId) {
+    try {
+      const r = await api('/api/missions/' + encodeURIComponent(missionId) + '/report');
+      if (!r.ok) return;
+      const rep = await r.json();
+      renderPostFlight(rep);
+    } catch (e) { console.error('[cockpit] loadPostFlight', e); }
+  }
+
+  async function toggleDeliverable(missionId, idx, met) {
+    try {
+      const r = await api(
+        '/api/missions/' + encodeURIComponent(missionId) +
+          '/deliverables/' + encodeURIComponent(idx),
+        { method: 'PATCH', body: JSON.stringify({ met: met }) }
+      );
+      if (!r.ok) return;
+      await loadPostFlight(missionId);
+    } catch (e) { console.error('[cockpit] toggleDeliverable', e); }
+  }
+
+  async function cockpitCompleteMission() {
+    if (!activeMissionId) {
+      console.warn('[cockpit] no active mission to complete');
+      return;
+    }
+    if (!window.confirm('Mark this mission complete?')) return;
+    try {
+      const r = await api('/api/missions/' + encodeURIComponent(activeMissionId) + '/complete',
+                          { method: 'POST' });
+      if (!r.ok) {
+        console.error('[cockpit] complete failed', r.status);
+        return;
+      }
+      await loadPostFlight(activeMissionId);
+    } catch (e) { console.error('[cockpit] complete threw', e); }
+  }
+  window.cockpitCompleteMission = cockpitCompleteMission;
+
+  function reportToMarkdown(rep) {
+    const lines = [];
+    lines.push('# Mission ' + rep.mission_id + ' — ' + (rep.title || ''));
+    lines.push('');
+    lines.push('Status: **' + rep.status + '**');
+    lines.push('');
+    if (rep.objective) {
+      lines.push('## Objective');
+      lines.push(rep.objective);
+      lines.push('');
+    }
+    lines.push('## Stats');
+    const s = rep.stats || {};
+    lines.push('- Duration: ' + fmtDuration(s.duration_seconds));
+    lines.push('- Interventions: ' + s.interventions);
+    lines.push('- Deliverables met: ' + s.deliverables_met + ' / ' + s.deliverables_total);
+    lines.push('- Crew: ' + s.crew_count);
+    lines.push('');
+    lines.push('## Deliverables');
+    (rep.deliverables || []).forEach(function (d) {
+      const mark = d.met ? '✓' : (d.required ? '×' : '−');
+      const tag = d.required ? '' : ' (optional)';
+      lines.push('- [' + mark + '] ' + (d.text || '') + tag);
+    });
+    lines.push('');
+    lines.push('## Decisions timeline');
+    (rep.decisions || []).forEach(function (d) {
+      lines.push('- ' + fmtTime(d.ts) + ' · ' + (d.type || '') + ' · ' + (d.body || ''));
+    });
+    lines.push('');
+    lines.push('## Crew');
+    (rep.crew || []).forEach(function (m) {
+      lines.push('- @' + (m.agent || '') + (m.role ? ' (' + m.role + ')' : ''));
+    });
+    return lines.join('\n');
+  }
+
+  function cockpitDownloadReport() {
+    if (!postFlightReport) { console.warn('[cockpit] no report loaded'); return; }
+    const md = reportToMarkdown(postFlightReport);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = postFlightReport.mission_id + '-report.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  window.cockpitDownloadReport = cockpitDownloadReport;
+
+  function cockpitArchiveMission() {
+    document.body.classList.remove('cockpit-post-flight');
+    activeMissionId = null;
+    postFlightReport = null;
+  }
+  window.cockpitArchiveMission = cockpitArchiveMission;
+})();
