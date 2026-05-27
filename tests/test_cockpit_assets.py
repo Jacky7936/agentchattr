@@ -99,7 +99,7 @@ def test_index_loads_geist_fonts():
     html = _read("static/index.html")
     assert "fonts.googleapis.com" in html, "Google Fonts preconnect/link missing"
     assert "Geist" in html, "Geist font not requested"
-    assert "Geist+Mono" in html or "Geist%20Mono" in html or "family=Geist" in html, \
+    assert "Geist+Mono" in html or "Geist%20Mono" in html, \
         "Geist Mono not requested"
 
 

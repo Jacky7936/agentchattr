@@ -167,12 +167,15 @@
 /* ============ Cockpit shell ============ */
 #cockpit-mode {
   display: none;
-  position: relative;
-  z-index: 1;
+  position: fixed;
+  top: var(--header-h, 48px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 24px 28px;
-  height: calc(100vh - 64px);
   overflow: hidden;
   grid-template-rows: auto auto 1fr;
   gap: 16px;
@@ -184,6 +187,17 @@ body.cockpit-active #session-bar,
 body.cockpit-active #schedules-bar,
 body.cockpit-active footer { display: none; }
 body.cockpit-active { background: var(--canvas); }
+body.cockpit-active header.topbar,
+body.cockpit-active .topbar {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  color: var(--ink-2);
+  border-bottom-color: var(--glass-stroke-dark);
+}
+body.cockpit-active header.topbar .settings-btn {
+  color: var(--ink-3);
+}
 
 /* Ambient orbs — give Liquid Glass something to refract on white */
 body.cockpit-active::before {
