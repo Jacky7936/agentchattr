@@ -67,8 +67,12 @@ def test_on_change_callback_fires_on_create():
 
 
 def test_app_imports_mission_store():
-    """app.py must import MissionStore cleanly without breaking init."""
-    import importlib
-    mod = importlib.import_module("app")
-    assert hasattr(mod, "MissionStore"), \
-        "app.py must re-export MissionStore (verify import line near jobs)"
+    """app.py must wire MissionStore (import + module-level + configure init)."""
+    from pathlib import Path
+    src = (Path(__file__).resolve().parent / "app.py").read_text(encoding="utf-8")
+    assert "from missions import MissionStore" in src, \
+        "app.py missing `from missions import MissionStore`"
+    assert "missions: MissionStore | None" in src, \
+        "app.py missing module-level `missions: MissionStore | None`"
+    assert "MissionStore(str(missions_path))" in src, \
+        "app.py missing MissionStore init in configure()"
