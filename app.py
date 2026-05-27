@@ -3094,6 +3094,56 @@ async def get_mission(mission_id: str):
     return m
 
 
+def _post_intervention_to_channel(channel: str, *, action: str, agent: str, text: str) -> None:
+    """Translate an intervention into chat messages on the mission channel."""
+    if store is None:
+        return
+    agent = agent.strip().lstrip("@")
+    if action == "freeze":
+        store.add(sender="user", text=f"/freeze @{agent}",
+                  msg_type="message", channel=channel)
+    elif action == "redirect":
+        instruction = (text or "").strip()
+        if instruction:
+            store.add(sender="user", text=f"@{agent} {instruction}",
+                      msg_type="message", channel=channel)
+        else:
+            store.add(sender="user", text=f"@{agent} please pause and clarify your current task.",
+                      msg_type="message", channel=channel)
+    elif action == "stop":
+        store.add(sender="user", text=f"/freeze @{agent}",
+                  msg_type="message", channel=channel)
+        store.add(sender="system",
+                  text=f"human · stopped {agent}", msg_type="system", channel=channel)
+
+
+@app.post("/api/missions/{mission_id}/intervene")
+async def intervene_mission(mission_id: str, request: Request):
+    if missions is None:
+        raise HTTPException(status_code=503, detail="server not configured")
+    mission = missions.get(mission_id)
+    if mission is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+    action = (body.get("action") or "").strip()
+    if action not in ("freeze", "redirect", "stop"):
+        raise HTTPException(status_code=400, detail="action must be freeze | redirect | stop")
+    agent = (body.get("agent") or "").strip()
+    if not agent:
+        raise HTTPException(status_code=400, detail="agent required")
+    text = body.get("text") or ""
+    _post_intervention_to_channel(
+        mission["transcript_channel_id"],
+        action=action,
+        agent=agent,
+        text=text,
+    )
+    return {"ok": True, "mission_id": mission_id, "action": action, "agent": agent}
+
+
 @app.post("/api/jobs")
 async def create_job(request: Request):
     """Create a new job."""

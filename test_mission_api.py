@@ -116,3 +116,62 @@ def test_launch_posts_kickoff_message(client):
     assert "@claude" in kickoff["text"]
     assert "Kickoff" in kickoff["text"] or "Replace JWT" in kickoff["text"]
     assert kickoff.get("sender") in ("system", "human", "user")
+
+
+def test_intervene_freeze(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="iv")).json()
+    mid = body["id"]
+    channel = body["transcript_channel_id"]
+    r = c.post(f"/api/missions/{mid}/intervene",
+               json={"action": "freeze", "agent": "codex"})
+    assert r.status_code == 200
+    msgs = c.get(f"/api/messages?channel={channel}").json()
+    texts = [m["text"] for m in msgs]
+    assert any("/freeze @codex" in t for t in texts)
+
+
+def test_intervene_redirect(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="iv2")).json()
+    mid = body["id"]
+    channel = body["transcript_channel_id"]
+    r = c.post(f"/api/missions/{mid}/intervene",
+               json={"action": "redirect", "agent": "codex",
+                     "text": "stop and write audit first"})
+    assert r.status_code == 200
+    msgs = c.get(f"/api/messages?channel={channel}").json()
+    redirect_msg = [m for m in msgs if "@codex" in m["text"]
+                    and "audit first" in m["text"]]
+    assert len(redirect_msg) >= 1
+
+
+def test_intervene_stop(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="iv3")).json()
+    mid = body["id"]
+    channel = body["transcript_channel_id"]
+    r = c.post(f"/api/missions/{mid}/intervene",
+               json={"action": "stop", "agent": "codex"})
+    assert r.status_code == 200
+    msgs = c.get(f"/api/messages?channel={channel}").json()
+    has_freeze = any("/freeze @codex" in m["text"] for m in msgs)
+    has_stop_note = any("stopped" in m["text"].lower() and "codex" in m["text"].lower()
+                        for m in msgs)
+    assert has_freeze, "stop must include /freeze command"
+    assert has_stop_note, "stop must include a human-readable note"
+
+
+def test_intervene_404_for_unknown_mission(client):
+    c, _ = client
+    r = c.post("/api/missions/mission-999/intervene",
+               json={"action": "freeze", "agent": "codex"})
+    assert r.status_code == 404
+
+
+def test_intervene_400_for_bad_action(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="iv4")).json()
+    r = c.post(f"/api/missions/{body['id']}/intervene",
+               json={"action": "explode", "agent": "codex"})
+    assert r.status_code == 400
