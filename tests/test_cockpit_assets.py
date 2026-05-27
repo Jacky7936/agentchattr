@@ -240,3 +240,17 @@ def test_cockpit_js_dynamic_crew_chips():
 def test_cockpit_js_safe_dom_still_holds():
     js = _read("static/cockpit.js")
     assert "innerHTML" not in js
+
+
+def test_cockpit_css_active_mission():
+    css = _read("static/cockpit.css")
+    assert "body.cockpit-active-mission" in css, "missing active-mission toggle"
+    assert ".cockpit-active-head" in css, "missing active mission head"
+    assert "#cockpit-agent-tiles" in css, "missing agent tiles container"
+
+
+def test_cockpit_css_intervention_actions():
+    css = _read("static/cockpit.css")
+    for sel in [".agent-actions", ".agent-action", ".agent-action.freeze",
+                ".agent-action.redirect", ".agent-action.stop"]:
+        assert sel in css, f"missing intervention button {sel}"
