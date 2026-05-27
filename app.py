@@ -228,17 +228,15 @@ def install_security_middleware(target_app: FastAPI, token: str, cfg: dict):
                 if _self.registry and _self.registry.resolve_token(bearer):
                     return await call_next(request)
 
-            # When session_token is empty, security is disabled (test/dev mode).
-            if _self.session_token:
-                req_token = (
-                    request.headers.get("x-session-token")
-                    or request.query_params.get("token")
+            req_token = (
+                request.headers.get("x-session-token")
+                or request.query_params.get("token")
+            )
+            if req_token != _self.session_token:
+                return JSONResponse(
+                    {"error": "forbidden: invalid or missing session token"},
+                    status_code=403,
                 )
-                if req_token != _self.session_token:
-                    return JSONResponse(
-                        {"error": "forbidden: invalid or missing session token"},
-                        status_code=403,
-                    )
 
             return await call_next(request)
 

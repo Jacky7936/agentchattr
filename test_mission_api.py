@@ -9,15 +9,18 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    """Boot the app pointing at a temp data dir + bypassed security."""
+    """Boot the app pointing at a temp data dir + a real session token; client sends the token in every request."""
     monkeypatch.setenv("AGENTCHATTR_DATA_DIR", str(tmp_path))
     # Reload app freshly so it picks up the env-overridden data dir
     import importlib, sys
     for m in ["app", "missions", "jobs", "store"]:
         sys.modules.pop(m, None)
     import app as app_module
-    app_module.configure({"server": {"data_dir": str(tmp_path)}}, session_token="")
-    return TestClient(app_module.app), app_module
+    real_token = "test-session-token-abc"
+    app_module.configure({"server": {"data_dir": str(tmp_path)}}, session_token=real_token)
+    tc = TestClient(app_module.app)
+    tc.headers.update({"x-session-token": real_token})
+    return tc, app_module
 
 
 def _briefing_payload(**overrides):
