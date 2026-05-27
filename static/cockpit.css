@@ -172,8 +172,9 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 24px 28px;
-  min-height: calc(100vh - 64px);
-  grid-template-rows: auto 1fr auto;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  grid-template-rows: auto auto 1fr;
   gap: 16px;
 }
 body.cockpit-active #cockpit-mode { display: grid; }
@@ -198,6 +199,11 @@ body.cockpit-active::before {
 @keyframes cockpit-drift {
   0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
   100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06) rotate(0.6deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.cockpit-active::before {
+    animation: none;
+  }
 }
 
 /* Topbar variant inside cockpit */
@@ -280,4 +286,4 @@ body.cockpit-active::before {
 .cockpit-msg-body { font-size: 13.5px; line-height: 1.65; color: var(--ink-2); word-wrap: break-word; }
 
 /* Cockpit toggle button in topbar */
-.cockpit-toggle.active { color: var(--sem-go); }
+.topbar .cockpit-toggle.active { color: var(--sem-go); }
