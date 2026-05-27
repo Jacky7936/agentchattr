@@ -216,11 +216,35 @@
       .sort();
   }
 
+  function hexToRgba(hex, alpha) {
+    hex = (hex || '').replace(/^#/, '');
+    if (hex.length === 3) hex = hex.split('').map(function (c) { return c + c; }).join('');
+    if (hex.length !== 6) return '';
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return '';
+    return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')';
+  }
+
+  function applyAgentAccents(el, agentName) {
+    const cfg = window.agentConfig || window.baseColors || {};
+    const entry = cfg[agentName] || cfg[(agentName || '').toLowerCase()];
+    if (!entry || !entry.color) return;
+    const color = entry.color;
+    el.style.setProperty('--accent', color);
+    const glow = hexToRgba(color, 0.40);
+    if (glow) el.style.setProperty('--accent-glow', glow);
+    const tint = hexToRgba(color, 0.06);
+    if (tint) el.style.setProperty('--accent-tint', tint);
+  }
+
   function buildCrewChip(name) {
     const chip = document.createElement('div');
     chip.className = 'agent-chip';
     chip.dataset.agent = name.toLowerCase();
     chip.dataset.on = 'false';
+    applyAgentAccents(chip, name);
     chip.addEventListener('click', function (e) {
       if (e.target && e.target.classList && e.target.classList.contains('role-input')) return;
       chip.dataset.on = chip.dataset.on === 'true' ? 'false' : 'true';
@@ -481,11 +505,35 @@
     });
   }
 
+  function hexToRgba(hex, alpha) {
+    hex = (hex || '').replace(/^#/, '');
+    if (hex.length === 3) hex = hex.split('').map(function (c) { return c + c; }).join('');
+    if (hex.length !== 6) return '';
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return '';
+    return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + alpha + ')';
+  }
+
+  function applyAgentAccents(el, agentName) {
+    const cfg = window.agentConfig || window.baseColors || {};
+    const entry = cfg[agentName] || cfg[(agentName || '').toLowerCase()];
+    if (!entry || !entry.color) return;
+    const color = entry.color;
+    el.style.setProperty('--accent', color);
+    const glow = hexToRgba(color, 0.40);
+    if (glow) el.style.setProperty('--accent-glow', glow);
+    const tint = hexToRgba(color, 0.06);
+    if (tint) el.style.setProperty('--accent-tint', tint);
+  }
+
   function buildAgentTile(mission, member) {
     const agentName = (member.agent || '').toLowerCase();
     const tile = document.createElement('div');
     tile.className = 'agent-tile';
     tile.dataset.agent = agentName;
+    applyAgentAccents(tile, agentName);
 
     const row1 = document.createElement('div');
     row1.className = 'agent-row1';

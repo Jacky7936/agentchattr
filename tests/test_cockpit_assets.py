@@ -315,3 +315,22 @@ def test_cockpit_js_post_flight():
 def test_cockpit_js_post_flight_safe_dom():
     js = _read("static/cockpit.js")
     assert "innerHTML" not in js
+
+
+def test_cockpit_js_applies_agent_accents_inline():
+    js = _read("static/cockpit.js")
+    # Both crew chip + active tile must set the three accent CSS vars inline
+    # so profile names (e.g. codex-orchestrator) inherit the right color.
+    assert "applyAgentAccents" in js, \
+        "must define applyAgentAccents helper"
+    assert "--accent-glow" in js, "must set --accent-glow inline"
+    assert "--accent-tint" in js, "must set --accent-tint inline"
+    # Helper must call from BOTH crew-chip builder + agent-tile builder.
+    # Spot-check by ensuring the function is invoked at least twice.
+    assert js.count("applyAgentAccents(") >= 2, \
+        "applyAgentAccents must be called from buildCrewChip and buildAgentTile"
+
+
+def test_cockpit_js_innerhtml_still_absent():
+    js = _read("static/cockpit.js")
+    assert "innerHTML" not in js
