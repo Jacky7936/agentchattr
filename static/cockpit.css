@@ -179,6 +179,14 @@
   overflow-y: auto;
   overflow-x: hidden;
   gap: 16px;
+  /* Hide scrollbar visually while keeping scroll behaviour */
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE / legacy Edge */
+}
+#cockpit-mode::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;                /* WebKit (Chrome / Safari / new Edge) */
 }
 body.cockpit-active #cockpit-mode { display: flex; flex-direction: column; }
 body.cockpit-active #content-area,
