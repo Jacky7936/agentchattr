@@ -125,3 +125,30 @@ def test_index_has_cockpit_shell():
     assert 'id="cockpit-mode"' in html, "<section id='cockpit-mode'> missing"
     assert 'cockpit-standby' in html, "STANDING BY empty state markup missing"
     assert 'cockpit-transcript' in html, "transcript container markup missing"
+
+
+def test_cockpit_js_exists():
+    js = _read("static/cockpit.js")
+    assert js.strip(), "static/cockpit.js empty"
+
+
+def test_cockpit_js_exports_toggle():
+    js = _read("static/cockpit.js")
+    assert "window.toggleCockpitMode" in js, \
+        "cockpit.js must expose window.toggleCockpitMode"
+    assert "localStorage" in js, "must persist mode via localStorage"
+    assert "cockpit-active" in js, "must apply body.cockpit-active class"
+
+
+def test_cockpit_js_url_param():
+    js = _read("static/cockpit.js")
+    # Either ?cockpit=1 enabling or URLSearchParams handling
+    assert "cockpit" in js and ("URLSearchParams" in js or "location.search" in js), \
+        "must support ?cockpit=1 URL param to enable"
+
+
+def test_cockpit_js_uses_safe_dom_apis():
+    js = _read("static/cockpit.js")
+    # Slice 1 explicitly avoids innerHTML — see plan §Architecture for rationale.
+    assert "innerHTML" not in js, \
+        "cockpit.js must not use innerHTML; build DOM with createElement + textContent"
