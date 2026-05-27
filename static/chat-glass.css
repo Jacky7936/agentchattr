@@ -417,6 +417,341 @@ html[data-theme="light"] body:not(.cockpit-active) .status-pill.working {
   border-color: color-mix(in oklch, var(--agent-color, var(--sem-hold)) 60%, transparent);
 }
 
+/* ============ Side panel headers (shared rhythm) ============ */
+html[data-theme="light"] body:not(.cockpit-active) .jobs-header,
+html[data-theme="light"] body:not(.cockpit-active) .rules-header,
+html[data-theme="light"] body:not(.cockpit-active) .pins-header,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-head {
+  border-bottom: 1px solid var(--glass-stroke-dark);
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .jobs-header,
+html[data-theme="light"] body:not(.cockpit-active) .rules-header,
+html[data-theme="light"] body:not(.cockpit-active) .pins-header {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Plus / create / remind buttons inside the panel headers — glass ghost */
+html[data-theme="light"] body:not(.cockpit-active) .jobs-create-btn,
+html[data-theme="light"] body:not(.cockpit-active) .channel-sidebar-header-add,
+html[data-theme="light"] body:not(.cockpit-active) .rules-remind-btn {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--glass-stroke-dark);
+  border-radius: 8px;
+  color: var(--ink-3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) .jobs-create-btn:hover,
+html[data-theme="light"] body:not(.cockpit-active) .channel-sidebar-header-add:hover,
+html[data-theme="light"] body:not(.cockpit-active) .rules-remind-btn:hover {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
+/* ============ Agent work panel (代理人任務狀態) ============ */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border-left: 1px solid var(--glass-stroke-dark);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    -8px 0 24px rgba(17, 17, 17, 0.04);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-grip {
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(17, 17, 17, 0.08) 40%,
+    rgba(17, 17, 17, 0.08) 60%,
+    transparent 100%);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-kicker {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-head h2 {
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-close {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--glass-stroke-dark);
+  border-radius: 8px;
+  color: var(--ink-3);
+  backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-close:hover {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
+/* Mission summary card at the top */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-summary {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 4px 16px rgba(17, 17, 17, 0.03);
+}
+
+/* Channel pill — refined */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-channel {
+  background: var(--sem-brief-bg);
+  color: var(--sem-brief);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 9999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Section labels (目前任務 / 目標 / 此頻道目前沒有進行中的任務線) */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-label,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row-line span,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-progress-head {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  font-weight: 500;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-field strong,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-progress-head strong {
+  font-family: var(--sans);
+  font-weight: 500;
+  color: var(--ink-2);
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 13px;
+}
+
+/* Progress bar (top + per-agent mini) */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-progress,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-mini-progress {
+  background: rgba(17, 17, 17, 0.06);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-progress span,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-mini-progress span {
+  background: var(--ink-2);
+  border-radius: 9999px;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-distance,
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-empty {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* Individual agent rows (3 cards: Claude Designer / Researcher / Reviewer) */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    0 1px 2px rgba(17, 17, 17, 0.02),
+    0 4px 12px rgba(17, 17, 17, 0.03);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    0 8px 24px rgba(17, 17, 17, 0.06);
+}
+
+/* State variants — keep the existing semantic colors but render them with glass */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row.is-active {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: color-mix(in oklch, var(--sem-go-bg) 35%, rgba(255, 255, 255, 0.62));
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row.is-warn {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: color-mix(in oklch, var(--sem-hold-bg) 35%, rgba(255, 255, 255, 0.62));
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row.is-done {
+  border-color: rgba(16, 185, 129, 0.2);
+  background: rgba(255, 255, 255, 0.5);
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row.is-offline {
+  border-color: var(--glass-stroke-dark);
+  background: rgba(17, 17, 17, 0.02);
+  opacity: 0.7;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row-top strong {
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row-top span {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row.is-active .agent-work-row-top span {
+  color: var(--sem-go);
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row.is-warn .agent-work-row-top span {
+  color: var(--sem-hold);
+}
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-row.is-done .agent-work-row-top span {
+  color: var(--sem-go);
+}
+
+/* Role label inside each agent row */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-role {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: rgba(17, 17, 17, 0.04);
+  border: 1px solid var(--glass-stroke-dark);
+  border-radius: 9999px;
+  padding: 2px 8px;
+}
+
+/* Avatar inside agent row — gentle glow with agent color */
+html[data-theme="light"] body:not(.cockpit-active) .agent-work-avatar {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 0 1px rgba(17, 17, 17, 0.04),
+    0 0 10px var(--agent-color, transparent);
+}
+
+/* ============ Jobs panel internals ============ */
+html[data-theme="light"] body:not(.cockpit-active) .job-toggle {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--glass-stroke-dark);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) .job-toggle.open.active {
+  background: var(--sem-brief-bg);
+  color: var(--sem-brief);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+html[data-theme="light"] body:not(.cockpit-active) .job-toggle.done.active {
+  background: var(--sem-go-bg);
+  color: var(--sem-go);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+html[data-theme="light"] body:not(.cockpit-active) .job-toggle.archived.active {
+  background: rgba(17, 17, 17, 0.06);
+  color: var(--ink-2);
+  border-color: var(--glass-stroke-dark);
+}
+
+/* Jobs / rules / pins list items as glass cards */
+html[data-theme="light"] body:not(.cockpit-active) #jobs-list > *,
+html[data-theme="light"] body:not(.cockpit-active) #rules-list > *,
+html[data-theme="light"] body:not(.cockpit-active) #pins-list > * {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+/* ============ Inline decision cards (in chat messages) ============ */
+html[data-theme="light"] body:not(.cockpit-active) .decision-choices {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+html[data-theme="light"] body:not(.cockpit-active) .decision-choices button,
+html[data-theme="light"] body:not(.cockpit-active) .choice-btn {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--bubble-color, var(--glass-stroke-dark));
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) .decision-choices button:hover,
+html[data-theme="light"] body:not(.cockpit-active) .choice-btn:hover {
+  background: var(--bubble-color, var(--ink));
+  color: white;
+}
+html[data-theme="light"] body:not(.cockpit-active) .decision-resolved {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  background: rgba(17, 17, 17, 0.04);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+/* ============ Channel sidebar items + tabs ============ */
+html[data-theme="light"] body:not(.cockpit-active) .channel-tab,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list > * {
+  background: transparent;
+  border-radius: 8px;
+  transition: background 160ms ease, color 160ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) .channel-tab:hover,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list > *:hover {
+  background: rgba(17, 17, 17, 0.04);
+}
+html[data-theme="light"] body:not(.cockpit-active) .channel-tab.active,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list > *.active {
+  background: var(--sem-brief-bg);
+  color: var(--sem-brief);
+}
+
 /* ============ Reduced-transparency fallback ============ */
 @media (prefers-reduced-transparency: reduce) {
   html[data-theme="light"] body:not(.cockpit-active) header.topbar,
@@ -431,7 +766,13 @@ html[data-theme="light"] body:not(.cockpit-active) .status-pill.working {
   html[data-theme="light"] body:not(.cockpit-active) #agent-work-panel,
   html[data-theme="light"] body:not(.cockpit-active) .chat-bubble,
   html[data-theme="light"] body:not(.cockpit-active) .status-pill,
-  html[data-theme="light"] body:not(.cockpit-active) .settings-btn {
+  html[data-theme="light"] body:not(.cockpit-active) .settings-btn,
+  html[data-theme="light"] body:not(.cockpit-active) .agent-work-summary,
+  html[data-theme="light"] body:not(.cockpit-active) .agent-work-row,
+  html[data-theme="light"] body:not(.cockpit-active) .agent-work-head,
+  html[data-theme="light"] body:not(.cockpit-active) #jobs-list > *,
+  html[data-theme="light"] body:not(.cockpit-active) #rules-list > *,
+  html[data-theme="light"] body:not(.cockpit-active) #pins-list > * {
     background: var(--canvas);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
