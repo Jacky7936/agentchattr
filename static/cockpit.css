@@ -347,6 +347,14 @@ body.cockpit-briefing .cockpit-briefing-form { display: grid; }
   text-transform: uppercase; color: var(--ink-3); margin-bottom: 14px;
   display: flex; align-items: center; justify-content: space-between;
 }
+.setup-card h3 .hint {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-4);
+}
 
 .agent-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .agent-chip {
