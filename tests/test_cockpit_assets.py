@@ -217,3 +217,26 @@ def test_index_has_briefing_form():
     assert 'id="cockpit-briefing-deliverables"' in html, "missing deliverables list"
     assert 'id="cockpit-launch-btn"' in html, "missing launch button"
     assert 'enterCockpitBriefing()' in html, "New Mission button not wired"
+
+
+def test_cockpit_js_briefing_entry():
+    js = _read("static/cockpit.js")
+    assert "enterCockpitBriefing" in js, "must expose enterCockpitBriefing()"
+    assert "cockpit-briefing" in js, "must toggle body.cockpit-briefing class"
+
+
+def test_cockpit_js_launch_calls_api():
+    js = _read("static/cockpit.js")
+    assert "cockpitLaunchMission" in js, "must expose cockpitLaunchMission()"
+    assert "/api/missions" in js, "launch must POST /api/missions"
+
+
+def test_cockpit_js_dynamic_crew_chips():
+    js = _read("static/cockpit.js")
+    assert "agentConfig" in js or "baseColors" in js, \
+        "must derive crew list from existing agent registry"
+
+
+def test_cockpit_js_safe_dom_still_holds():
+    js = _read("static/cockpit.js")
+    assert "innerHTML" not in js

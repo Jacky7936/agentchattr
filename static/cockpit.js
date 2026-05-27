@@ -199,3 +199,213 @@
     } catch (e) { /* tolerant */ }
   });
 })();
+
+/* Briefing flow — appended in Slice 2.
+ * Switches the cockpit head into a form, gathers brief, POSTs /api/missions,
+ * then resets the form and switches transcript to the new mission channel.
+ * All DOM built with createElement + textContent; no direct-write APIs.
+ */
+(function () {
+  const cockpit = window.__cockpit;
+  if (!cockpit) return;
+
+  function knownAgents() {
+    const cfg = window.agentConfig || window.baseColors || {};
+    return Object.keys(cfg)
+      .filter((k) => k && k.toLowerCase() !== 'user' && k.toLowerCase() !== 'system')
+      .sort();
+  }
+
+  function buildCrewChip(name) {
+    const chip = document.createElement('div');
+    chip.className = 'agent-chip';
+    chip.dataset.agent = name.toLowerCase();
+    chip.dataset.on = 'false';
+    chip.addEventListener('click', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('role-input')) return;
+      chip.dataset.on = chip.dataset.on === 'true' ? 'false' : 'true';
+      updateRecap();
+    });
+
+    const head = document.createElement('div');
+    head.className = 'agent-chip-head';
+
+    const nm = document.createElement('span');
+    nm.className = 'agent-chip-name';
+    nm.textContent = name;
+    head.appendChild(nm);
+
+    const on = document.createElement('span');
+    on.className = 'agent-chip-on';
+    head.appendChild(on);
+
+    chip.appendChild(head);
+
+    const role = document.createElement('input');
+    role.className = 'role-input';
+    role.type = 'text';
+    role.placeholder = 'role (e.g. builder)';
+    chip.appendChild(role);
+
+    return chip;
+  }
+
+  function rebuildCrewChips() {
+    const container = document.getElementById('cockpit-briefing-crew');
+    if (!container) return;
+    while (container.firstChild) container.removeChild(container.firstChild);
+    knownAgents().forEach(function (name) {
+      container.appendChild(buildCrewChip(name));
+    });
+  }
+
+  function buildDeliverableRow(text, required) {
+    const row = document.createElement('div');
+    row.className = 'deliv-item';
+
+    const check = document.createElement('span');
+    check.className = 'deliv-check' + (required ? ' on' : '');
+    check.addEventListener('click', function () {
+      check.classList.toggle('on');
+    });
+    row.appendChild(check);
+
+    const input = document.createElement('input');
+    input.className = 'deliv-text';
+    input.type = 'text';
+    input.value = text || '';
+    input.placeholder = '一條驗收條件';
+    row.appendChild(input);
+
+    return row;
+  }
+
+  function cockpitAddDeliverable() {
+    const list = document.getElementById('cockpit-briefing-deliverables');
+    if (!list) return;
+    list.appendChild(buildDeliverableRow('', false));
+    updateRecap();
+  }
+  window.cockpitAddDeliverable = cockpitAddDeliverable;
+
+  function rebuildDeliverables() {
+    const list = document.getElementById('cockpit-briefing-deliverables');
+    if (!list) return;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    list.appendChild(buildDeliverableRow('Migration plan', true));
+    list.appendChild(buildDeliverableRow('Code diff', true));
+    list.appendChild(buildDeliverableRow('Test report', true));
+  }
+
+  function gatherBrief() {
+    const title = (document.getElementById('cockpit-briefing-title') || {}).value || '';
+    const objective = (document.getElementById('cockpit-briefing-objective') || {}).value || '';
+    const crew = [];
+    document.querySelectorAll('#cockpit-briefing-crew .agent-chip').forEach(function (chip) {
+      if (chip.dataset.on !== 'true') return;
+      const name = chip.dataset.agent || '';
+      const roleEl = chip.querySelector('.role-input');
+      const role = roleEl ? (roleEl.value || '') : '';
+      if (name) crew.push({ agent: name, role: role });
+    });
+    const deliverables = [];
+    document.querySelectorAll('#cockpit-briefing-deliverables .deliv-item').forEach(function (row) {
+      const txt = row.querySelector('.deliv-text');
+      const chk = row.querySelector('.deliv-check');
+      if (!txt || !txt.value.trim()) return;
+      deliverables.push({
+        text: txt.value.trim(),
+        required: chk ? chk.classList.contains('on') : false,
+      });
+    });
+    const eta = parseInt((document.getElementById('cockpit-briefing-eta') || {}).value, 10) || 0;
+    const hops = parseInt((document.getElementById('cockpit-briefing-hops') || {}).value, 10) || 0;
+    const pause = parseInt((document.getElementById('cockpit-briefing-pause') || {}).value, 10) || 0;
+    return {
+      title: title.trim(),
+      objective: objective.trim(),
+      crew: crew,
+      reviewer: '',
+      deliverables: deliverables,
+      eta_minutes: eta,
+      hop_budget: hops,
+      auto_pause_blockers: pause,
+    };
+  }
+
+  function updateRecap() {
+    const brief = gatherBrief();
+    const recap = document.getElementById('cockpit-briefing-recap');
+    const btn = document.getElementById('cockpit-launch-btn');
+    if (!recap || !btn) return;
+    const ready = brief.title && brief.crew.length > 0;
+    while (recap.firstChild) recap.removeChild(recap.firstChild);
+    const status = document.createElement('span');
+    status.textContent = ready ? 'READY ' : 'NEEDS ';
+    recap.appendChild(status);
+    const crewSpan = document.createElement('b');
+    crewSpan.textContent = brief.crew.length + (brief.crew.length === 1 ? ' agent' : ' agents');
+    recap.appendChild(crewSpan);
+    recap.appendChild(document.createTextNode(brief.title ? ' · titled' : ' · title missing'));
+    btn.disabled = !ready;
+  }
+
+  function enterCockpitBriefing() {
+    document.body.classList.add('cockpit-briefing');
+    rebuildCrewChips();
+    rebuildDeliverables();
+    updateRecap();
+    const titleEl = document.getElementById('cockpit-briefing-title');
+    if (titleEl) titleEl.focus();
+    ['input', 'change'].forEach(function (evt) {
+      const form = document.querySelector('.cockpit-briefing-form');
+      if (form && !form.dataset.bound) {
+        form.addEventListener(evt, updateRecap);
+        form.dataset.bound = '1';
+      }
+    });
+  }
+  window.enterCockpitBriefing = enterCockpitBriefing;
+
+  function exitCockpitBriefing() {
+    document.body.classList.remove('cockpit-briefing');
+  }
+  window.exitCockpitBriefing = exitCockpitBriefing;
+
+  async function cockpitLaunchMission() {
+    const btn = document.getElementById('cockpit-launch-btn');
+    if (btn) btn.disabled = true;
+    const brief = gatherBrief();
+    try {
+      const token = window.__SESSION_TOKEN__ || '';
+      const r = await fetch('/api/missions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? ('Bearer ' + token) : '',
+        },
+        body: JSON.stringify(brief),
+      });
+      if (!r.ok) {
+        let detail = '';
+        try { detail = (await r.json()).detail || ''; } catch (e) {}
+        console.error('[cockpit] launch failed', r.status, detail);
+        if (btn) btn.disabled = false;
+        return;
+      }
+      const mission = await r.json();
+      try {
+        if (typeof window.switchChannel === 'function') {
+          window.switchChannel(mission.transcript_channel_id);
+        } else if (window.Store && typeof window.Store.set === 'function') {
+          window.Store.set('activeChannel', mission.transcript_channel_id);
+        }
+      } catch (e) {}
+      exitCockpitBriefing();
+    } catch (e) {
+      console.error('[cockpit] launch threw', e);
+      if (btn) btn.disabled = false;
+    }
+  }
+  window.cockpitLaunchMission = cockpitLaunchMission;
+})();
