@@ -409,3 +409,240 @@
   }
   window.cockpitLaunchMission = cockpitLaunchMission;
 })();
+
+/* Active mission flow — appended in Slice 3.
+ * Subscribes to Hub 'mission' events; when a mission becomes active in the
+ * current channel, replaces STANDING BY with a mission head + agent tiles.
+ * Each tile exposes Freeze / Redirect / Stop actions that POST to
+ * /api/missions/{id}/intervene.
+ * Safe DOM only: createElement + textContent.
+ */
+(function () {
+  const cockpit = window.__cockpit;
+  if (!cockpit) return;
+
+  const activeMissions = {};
+
+  function currentChannel() {
+    try { if (typeof window.activeChannel === 'string') return window.activeChannel; } catch (e) {}
+    try { return localStorage.getItem('agentchattr-channel') || 'general'; } catch (e) { return 'general'; }
+  }
+
+  function currentMission() {
+    return activeMissions[currentChannel()] || null;
+  }
+
+  function setActiveMission(mission) {
+    if (!mission || !mission.transcript_channel_id) return;
+    activeMissions[mission.transcript_channel_id] = mission;
+    if (mission.transcript_channel_id === currentChannel()) renderActive();
+  }
+
+  function clearActiveIfMatch(missionId) {
+    for (const ch in activeMissions) {
+      if (activeMissions[ch] && activeMissions[ch].id === missionId) {
+        delete activeMissions[ch];
+      }
+    }
+    if (!currentMission()) {
+      document.body.classList.remove('cockpit-active-mission');
+    }
+  }
+
+  function renderActive() {
+    const mission = currentMission();
+    if (!mission || mission.status !== 'active') {
+      document.body.classList.remove('cockpit-active-mission');
+      return;
+    }
+    document.body.classList.add('cockpit-active-mission');
+
+    const titleEl = document.getElementById('cockpit-active-title');
+    if (titleEl) titleEl.textContent = mission.title || '';
+
+    const objEl = document.getElementById('cockpit-active-objective');
+    if (objEl) objEl.textContent = mission.objective || '';
+
+    const etaEl = document.getElementById('cockpit-active-eta');
+    if (etaEl) etaEl.textContent = (mission.eta_minutes ? mission.eta_minutes + 'm' : '—');
+
+    const crewEl = document.getElementById('cockpit-active-crew');
+    if (crewEl) crewEl.textContent = String((mission.crew || []).length);
+
+    renderTiles(mission);
+  }
+
+  function renderTiles(mission) {
+    const container = document.getElementById('cockpit-agent-tiles');
+    if (!container) return;
+    while (container.firstChild) container.removeChild(container.firstChild);
+    (mission.crew || []).forEach(function (member) {
+      container.appendChild(buildAgentTile(mission, member));
+    });
+  }
+
+  function buildAgentTile(mission, member) {
+    const agentName = (member.agent || '').toLowerCase();
+    const tile = document.createElement('div');
+    tile.className = 'agent-tile';
+    tile.dataset.agent = agentName;
+
+    const row1 = document.createElement('div');
+    row1.className = 'agent-row1';
+
+    const name = document.createElement('span');
+    name.className = 'agent-name';
+    name.textContent = agentName;
+    if (member.role) {
+      const role = document.createElement('span');
+      role.className = 'role';
+      role.textContent = member.role;
+      name.appendChild(role);
+    }
+    row1.appendChild(name);
+
+    const pill = document.createElement('span');
+    pill.className = 'pill go';
+    pill.style.padding = '2px 8px';
+    pill.style.fontSize = '9px';
+    pill.textContent = 'Active';
+    row1.appendChild(pill);
+
+    tile.appendChild(row1);
+
+    const task = document.createElement('p');
+    task.className = 'agent-task';
+    task.textContent = '';
+    tile.appendChild(task);
+
+    const foot = document.createElement('div');
+    foot.className = 'agent-foot';
+    const lhs = document.createElement('span');
+    lhs.textContent = '';
+    foot.appendChild(lhs);
+
+    const actions = document.createElement('div');
+    actions.className = 'agent-actions';
+
+    const fBtn = document.createElement('button');
+    fBtn.type = 'button';
+    fBtn.className = 'agent-action freeze';
+    fBtn.title = 'Freeze';
+    fBtn.textContent = 'F';
+    fBtn.addEventListener('click', function () {
+      sendIntervention(mission.id, "freeze", agentName, '');
+    });
+    actions.appendChild(fBtn);
+
+    const rBtn = document.createElement('button');
+    rBtn.type = 'button';
+    rBtn.className = 'agent-action redirect';
+    rBtn.title = 'Redirect';
+    rBtn.textContent = 'R';
+    rBtn.addEventListener('click', function () {
+      const panel = tile.querySelector('.redirect-panel');
+      if (panel) panel.classList.toggle('open');
+    });
+    actions.appendChild(rBtn);
+
+    const xBtn = document.createElement('button');
+    xBtn.type = 'button';
+    xBtn.className = 'agent-action stop';
+    xBtn.title = 'Stop';
+    xBtn.textContent = '×';
+    xBtn.addEventListener('click', function () {
+      if (!window.confirm('Stop ' + agentName + ' on this mission?')) return;
+      sendIntervention(mission.id, "stop", agentName, '');
+    });
+    actions.appendChild(xBtn);
+
+    foot.appendChild(actions);
+    tile.appendChild(foot);
+
+    const panel = document.createElement('div');
+    panel.className = 'redirect-panel';
+
+    const ta = document.createElement('textarea');
+    ta.placeholder = '新的指令…';
+    panel.appendChild(ta);
+
+    const panelFoot = document.createElement('div');
+    panelFoot.className = 'redirect-foot';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', function () { panel.classList.remove('open'); });
+    panelFoot.appendChild(cancel);
+
+    const send = document.createElement('button');
+    send.type = 'button';
+    send.className = 'send';
+    send.textContent = 'Send Redirect';
+    send.addEventListener('click', function () {
+      const text = (ta.value || '').trim();
+      if (!text) return;
+      sendIntervention(mission.id, "redirect", agentName, text);
+      ta.value = '';
+      panel.classList.remove('open');
+    });
+    panelFoot.appendChild(send);
+
+    panel.appendChild(panelFoot);
+    tile.appendChild(panel);
+
+    return tile;
+  }
+
+  async function sendIntervention(missionId, action, agent, text) {
+    try {
+      const token = window.__SESSION_TOKEN__ || '';
+      const r = await fetch('/api/missions/' + encodeURIComponent(missionId) + '/intervene', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-session-token': token,
+        },
+        body: JSON.stringify({ action: action, agent: agent, text: text }),
+      });
+      if (!r.ok) console.error('[cockpit] intervene failed', r.status);
+    } catch (e) { console.error('[cockpit] intervene threw', e); }
+  }
+
+  function onMissionEvent(event) {
+    const action = event && event.action;
+    const mission = event && (event.data || event.mission);
+    if (!mission) return;
+    if (action === 'create' || action === 'update') {
+      if (mission.status === 'active') setActiveMission(mission);
+      else if (mission.status === 'complete' || mission.status === 'failed') {
+        clearActiveIfMatch(mission.id);
+      }
+    }
+  }
+  try {
+    if (window.Hub && typeof window.Hub.on === 'function') {
+      window.Hub.on('mission', onMissionEvent);
+    }
+  } catch (e) { console.error('[cockpit] failed to subscribe to mission events', e); }
+
+  async function bootstrapActiveMission() {
+    try {
+      const token = window.__SESSION_TOKEN__ || '';
+      const r = await fetch('/api/missions', {
+        headers: { 'x-session-token': token },
+      });
+      if (!r.ok) return;
+      const list = await r.json();
+      const ch = currentChannel();
+      const m = (list || []).reverse().find(function (x) {
+        return x.status === 'active' && x.transcript_channel_id === ch;
+      });
+      if (m) setActiveMission(m);
+    } catch (e) { /* tolerant */ }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrapActiveMission);
+  } else {
+    bootstrapActiveMission();
+  }
+})();

@@ -261,3 +261,21 @@ def test_index_has_active_mission_markup():
     assert 'class="cockpit-active-head' in html, "missing active head"
     assert 'id="cockpit-active-title"' in html, "missing mission title placeholder"
     assert 'id="cockpit-agent-tiles"' in html, "missing agent tiles container"
+
+
+def test_cockpit_js_active_mission():
+    js = _read("static/cockpit.js")
+    assert "cockpit-active-mission" in js, "must toggle body.cockpit-active-mission"
+    assert "Hub.on" in js and "'mission'" in js, "must subscribe to Hub mission events"
+    assert "/api/missions/" in js, "must call mission intervention endpoint"
+
+
+def test_cockpit_js_intervention_actions():
+    js = _read("static/cockpit.js")
+    for action in ['"freeze"', '"redirect"', '"stop"']:
+        assert action in js, f"must send {action} action to intervene endpoint"
+
+
+def test_cockpit_js_safe_dom_invariant():
+    js = _read("static/cockpit.js")
+    assert "innerHTML" not in js
