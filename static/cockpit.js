@@ -406,7 +406,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? ('Bearer ' + token) : '',
+          'x-session-token': token,
         },
         body: JSON.stringify(brief),
       });
@@ -414,6 +414,14 @@
         let detail = '';
         try { detail = (await r.json()).detail || ''; } catch (e) {}
         console.error('[cockpit] launch failed', r.status, detail);
+        const recap = document.getElementById('cockpit-briefing-recap');
+        if (recap) {
+          while (recap.firstChild) recap.removeChild(recap.firstChild);
+          const err = document.createElement('span');
+          err.textContent = 'Launch failed (' + r.status + '): ' + (detail || 'check console');
+          err.style.color = 'var(--sem-stop)';
+          recap.appendChild(err);
+        }
         if (btn) btn.disabled = false;
         return;
       }
