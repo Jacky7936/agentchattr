@@ -94,3 +94,12 @@ def test_get_mission_404_for_unknown(client):
     c, _ = client
     r = c.get("/api/missions/mission-999")
     assert r.status_code == 404
+
+
+def test_mission_create_broadcasts(client):
+    c, app_module = client
+    events = []
+    app_module.missions.on_change(lambda action, m: events.append((action, m["id"])))
+    body = c.post("/api/missions", json=_briefing_payload(title="bcast")).json()
+    assert ("create", body["id"]) in events
+    assert ("update", body["id"]) in events  # status transition to active

@@ -289,6 +289,7 @@ def configure(cfg: dict, session_token: str = ""):
 
     missions_path = Path(data_dir) / "missions.json"
     missions = MissionStore(str(missions_path))
+    missions.on_change(_on_mission_change)
 
     schedules = ScheduleStore(str(Path(data_dir) / "schedules.json"))
     schedules.on_change(_on_schedule_change)
@@ -575,6 +576,20 @@ def _on_job_change(action: str, data: dict):
     except RuntimeError:
         pass
     asyncio.run_coroutine_threadsafe(broadcast_job(action, data), _event_loop)
+
+
+def _on_mission_change(action: str, mission: dict) -> None:
+    """Called from any thread when a mission changes."""
+    if _event_loop is None:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+        if loop is _event_loop:
+            asyncio.ensure_future(broadcast_mission(action, mission))
+            return
+    except RuntimeError:
+        pass
+    asyncio.run_coroutine_threadsafe(broadcast_mission(action, mission), _event_loop)
 
 
 def _on_schedule_change(action: str, schedule: dict):
@@ -1988,6 +2003,17 @@ async def broadcast_schedule(action: str, schedule: dict):
 
 async def broadcast_session(action: str, session: dict):
     payload = json.dumps({"type": "session", "action": action, "data": session})
+    dead = set()
+    for client in list(ws_clients):
+        try:
+            await client.send_text(payload)
+        except Exception:
+            dead.add(client)
+    ws_clients.difference_update(dead)
+
+
+async def broadcast_mission(action: str, mission: dict):
+    payload = json.dumps({"type": "mission", "action": action, "data": mission})
     dead = set()
     for client in list(ws_clients):
         try:
