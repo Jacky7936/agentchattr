@@ -1,0 +1,319 @@
+/* Chat UI · iOS 26 Liquid Glass overlay
+ * Scoped to html[data-theme="light"] so the existing dark theme is untouched.
+ * Re-uses :root design tokens defined in cockpit.css (loaded before this file).
+ * Activates whenever the cockpit OVERLAY itself is NOT active — i.e. on the
+ * everyday chat surface.
+ */
+
+html[data-theme="light"] body:not(.cockpit-active) {
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+/* Subtle single-orb ambient drift — quieter than cockpit's 4 agent-color orbs.
+ * Sits behind every surface so glass panels have something to refract. */
+html[data-theme="light"] body:not(.cockpit-active)::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 45% 35% at 18% 12%, rgba(167, 139, 250, 0.18), transparent 65%),
+    radial-gradient(ellipse 40% 32% at 82% 88%, rgba(66, 133, 244, 0.16), transparent 65%),
+    radial-gradient(ellipse 30% 25% at 50% 50%, rgba(245, 184, 46, 0.10), transparent 65%);
+  opacity: 0.6;
+  animation: chat-glass-drift 30s ease-in-out infinite alternate;
+}
+@keyframes chat-glass-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-1.5%, 1%, 0) scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="light"] body:not(.cockpit-active)::before {
+    animation: none;
+  }
+}
+
+/* All chat content must sit above the ambient layer. */
+html[data-theme="light"] body:not(.cockpit-active) #app,
+html[data-theme="light"] body:not(.cockpit-active) #app.app-shell {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+/* ============ Topbar ============ */
+html[data-theme="light"] body:not(.cockpit-active) header.topbar,
+html[data-theme="light"] body:not(.cockpit-active) .topbar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-bottom: 1px solid var(--glass-stroke-dark);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 1px 2px rgba(17, 17, 17, 0.02);
+}
+
+/* ============ Settings bar ============ */
+html[data-theme="light"] body:not(.cockpit-active) #settings-bar {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    0 8px 24px rgba(17, 17, 17, 0.04);
+  margin: 8px;
+  padding: 14px 18px;
+}
+
+/* ============ Channel bar (top mode) ============ */
+html[data-theme="light"] body:not(.cockpit-active) #channel-bar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--glass-stroke-dark);
+}
+
+/* ============ Channel sidebar ============ */
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border-right: 1px solid var(--glass-stroke-dark);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .channel-sidebar-header {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list .channel-item,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list > * {
+  border-radius: 8px;
+}
+
+/* ============ Timeline + messages ============ */
+html[data-theme="light"] body:not(.cockpit-active) #timeline {
+  background: transparent;
+}
+
+/* Light glass tint on message bubbles — preserves per-agent accent color via
+ * the existing --bubble-color variable on the .chat-bubble inline style. */
+html[data-theme="light"] body:not(.cockpit-active) .chat-bubble {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid var(--glass-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 1px 2px rgba(17, 17, 17, 0.02),
+    0 4px 12px rgba(17, 17, 17, 0.03);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .msg-text {
+  color: var(--ink-2);
+}
+
+/* System / join / leave notices use a more transparent glass strip. */
+html[data-theme="light"] body:not(.cockpit-active) .message.system .chat-bubble,
+html[data-theme="light"] body:not(.cockpit-active) .system-bubble {
+  background: rgba(255, 255, 255, 0.45);
+  color: var(--ink-3);
+}
+
+/* ============ Side panels (right) ============ */
+html[data-theme="light"] body:not(.cockpit-active) #jobs-panel,
+html[data-theme="light"] body:not(.cockpit-active) #rules-panel,
+html[data-theme="light"] body:not(.cockpit-active) #pins-panel,
+html[data-theme="light"] body:not(.cockpit-active) #agent-work-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border-left: 1px solid var(--glass-stroke-dark);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+/* ============ Input row / composer ============ */
+html[data-theme="light"] body:not(.cockpit-active) footer {
+  background: transparent;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) #input-row {
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 8px 28px rgba(17, 17, 17, 0.05);
+  margin: 8px 16px 16px;
+  padding: 12px 14px;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) #input-row textarea#input {
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  outline: none;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) #input-row textarea#input::placeholder {
+  color: var(--ink-4);
+}
+
+/* Composer toolbar buttons — ghost glass */
+html[data-theme="light"] body:not(.cockpit-active) .toolbtn {
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid var(--glass-stroke-dark);
+  border-radius: 8px;
+  color: var(--ink-3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 160ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) .toolbtn:hover {
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
+  border-color: var(--ink-4);
+}
+
+/* Send button — cockpit-style black CTA. Wins over per-agent accent. */
+html[data-theme="light"] body:not(.cockpit-active) #send,
+html[data-theme="light"] body:not(.cockpit-active) .send-group #send {
+  background: var(--ink);
+  color: white;
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 0;
+  border-radius: 8px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 120ms ease;
+}
+html[data-theme="light"] body:not(.cockpit-active) #send:hover {
+  background: var(--ink-2);
+}
+html[data-theme="light"] body:not(.cockpit-active) #send:active {
+  transform: scale(0.98);
+}
+
+html[data-theme="light"] body:not(.cockpit-active) .send-group .send-clock {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--glass-stroke-dark);
+  color: var(--ink-3);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+}
+
+/* ============ Schedules bar + popovers ============ */
+html[data-theme="light"] body:not(.cockpit-active) #schedules-bar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--glass-stroke-dark);
+  border-radius: 12px;
+  margin: 0 16px 8px;
+}
+
+html[data-theme="light"] body:not(.cockpit-active) #schedule-popover,
+html[data-theme="light"] body:not(.cockpit-active) #mention-menu,
+html[data-theme="light"] body:not(.cockpit-active) #slash-menu,
+html[data-theme="light"] body:not(.cockpit-active) .mention-menu {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1.5px 0 var(--glass-edge),
+    inset 0 -1px 0 var(--glass-edge-bottom),
+    0 12px 36px rgba(17, 17, 17, 0.08);
+}
+
+/* ============ Mention toggles row above composer ============ */
+html[data-theme="light"] body:not(.cockpit-active) #mention-toggles-row {
+  padding: 0 16px;
+}
+
+/* ============ Scroll anchor (jump-to-bottom) ============ */
+html[data-theme="light"] body:not(.cockpit-active) #scroll-anchor {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 4px 16px rgba(17, 17, 17, 0.06);
+}
+
+/* ============ Update pill ============ */
+html[data-theme="light"] body:not(.cockpit-active) #update-pill {
+  background: var(--sem-brief-bg);
+  color: var(--sem-brief);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 9999px;
+}
+
+/* ============ Hide native scrollbars on chat surfaces for cleaner glass ============ */
+html[data-theme="light"] body:not(.cockpit-active) #timeline,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list,
+html[data-theme="light"] body:not(.cockpit-active) #jobs-list,
+html[data-theme="light"] body:not(.cockpit-active) #pins-list,
+html[data-theme="light"] body:not(.cockpit-active) #rules-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17, 17, 17, 0.18) transparent;
+}
+html[data-theme="light"] body:not(.cockpit-active) #timeline::-webkit-scrollbar,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list::-webkit-scrollbar,
+html[data-theme="light"] body:not(.cockpit-active) #jobs-list::-webkit-scrollbar,
+html[data-theme="light"] body:not(.cockpit-active) #pins-list::-webkit-scrollbar,
+html[data-theme="light"] body:not(.cockpit-active) #rules-list::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html[data-theme="light"] body:not(.cockpit-active) #timeline::-webkit-scrollbar-thumb,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list::-webkit-scrollbar-thumb,
+html[data-theme="light"] body:not(.cockpit-active) #jobs-list::-webkit-scrollbar-thumb,
+html[data-theme="light"] body:not(.cockpit-active) #pins-list::-webkit-scrollbar-thumb,
+html[data-theme="light"] body:not(.cockpit-active) #rules-list::-webkit-scrollbar-thumb {
+  background: rgba(17, 17, 17, 0.18);
+  border-radius: 9999px;
+}
+html[data-theme="light"] body:not(.cockpit-active) #timeline::-webkit-scrollbar-track,
+html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar-list::-webkit-scrollbar-track,
+html[data-theme="light"] body:not(.cockpit-active) #jobs-list::-webkit-scrollbar-track,
+html[data-theme="light"] body:not(.cockpit-active) #pins-list::-webkit-scrollbar-track,
+html[data-theme="light"] body:not(.cockpit-active) #rules-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============ Reduced-transparency fallback ============ */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme="light"] body:not(.cockpit-active) header.topbar,
+  html[data-theme="light"] body:not(.cockpit-active) .topbar,
+  html[data-theme="light"] body:not(.cockpit-active) #channel-bar,
+  html[data-theme="light"] body:not(.cockpit-active) #channel-sidebar,
+  html[data-theme="light"] body:not(.cockpit-active) #input-row,
+  html[data-theme="light"] body:not(.cockpit-active) #settings-bar,
+  html[data-theme="light"] body:not(.cockpit-active) #jobs-panel,
+  html[data-theme="light"] body:not(.cockpit-active) #rules-panel,
+  html[data-theme="light"] body:not(.cockpit-active) #pins-panel,
+  html[data-theme="light"] body:not(.cockpit-active) #agent-work-panel,
+  html[data-theme="light"] body:not(.cockpit-active) .chat-bubble {
+    background: var(--canvas);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
