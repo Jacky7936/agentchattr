@@ -254,3 +254,10 @@ def test_cockpit_css_intervention_actions():
     for sel in [".agent-actions", ".agent-action", ".agent-action.freeze",
                 ".agent-action.redirect", ".agent-action.stop"]:
         assert sel in css, f"missing intervention button {sel}"
+
+
+def test_index_has_active_mission_markup():
+    html = _read("static/index.html")
+    assert 'class="cockpit-active-head' in html, "missing active head"
+    assert 'id="cockpit-active-title"' in html, "missing mission title placeholder"
+    assert 'id="cockpit-agent-tiles"' in html, "missing agent tiles container"
