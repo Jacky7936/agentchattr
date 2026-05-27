@@ -93,3 +93,35 @@ def test_cockpit_css_empty_state():
     css = _read("static/cockpit.css")
     assert ".cockpit-standby" in css, \
         "missing .cockpit-standby (STANDING BY empty state) class"
+
+
+def test_index_loads_geist_fonts():
+    html = _read("static/index.html")
+    assert "fonts.googleapis.com" in html, "Google Fonts preconnect/link missing"
+    assert "Geist" in html, "Geist font not requested"
+    assert "Geist+Mono" in html or "Geist%20Mono" in html or "family=Geist" in html, \
+        "Geist Mono not requested"
+
+
+def test_index_links_cockpit_css():
+    html = _read("static/index.html")
+    assert "/static/cockpit.css" in html, "cockpit.css not linked"
+
+
+def test_index_loads_cockpit_js():
+    html = _read("static/index.html")
+    assert "/static/cockpit.js" in html, "cockpit.js not loaded"
+
+
+def test_index_has_cockpit_toggle_button():
+    html = _read("static/index.html")
+    assert 'id="cockpit-toggle"' in html, "cockpit toggle button missing"
+    assert 'onclick="toggleCockpitMode()"' in html, \
+        "toggle button must wire to toggleCockpitMode()"
+
+
+def test_index_has_cockpit_shell():
+    html = _read("static/index.html")
+    assert 'id="cockpit-mode"' in html, "<section id='cockpit-mode'> missing"
+    assert 'cockpit-standby' in html, "STANDING BY empty state markup missing"
+    assert 'cockpit-transcript' in html, "transcript container markup missing"

@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>agentchattr</title>
-    <link rel="stylesheet" href="/static/style.css?v=318">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css?v=319">
+    <link rel="stylesheet" href="/static/cockpit.css?v=1">
     <link rel="stylesheet" href="/static/sessions.css?v=224">
     <link rel="stylesheet" href="/static/jobs.css?v=224">
     <link rel="icon" href="/static/favicon.ico">
@@ -43,6 +47,9 @@
                 </button>
                 <button class="settings-btn danger-action" id="stop-agents-btn" onclick="stopAllAgents()" title="Stop all agents" aria-label="Stop all agents">
                     <span class="icon" data-lucide="power" aria-hidden="true"></span>
+                </button>
+                <button class="settings-btn cockpit-toggle" id="cockpit-toggle" onclick="toggleCockpitMode()" title="Mission Cockpit (preview)" aria-label="Toggle Mission Cockpit" aria-pressed="false">
+                    <span class="icon" data-lucide="radar" aria-hidden="true"></span>
                 </button>
                 <button class="settings-btn" id="settings-toggle" onclick="toggleSettings()" title="Settings">
                     <span class="icon" data-lucide="settings" aria-hidden="true"></span>
@@ -389,6 +396,33 @@
         <div id="agent-work-content" class="agent-work-content"></div>
     </aside>
 
+    <section id="cockpit-mode" aria-label="Mission Cockpit">
+      <div class="cockpit-topbar glass">
+        <div style="display:flex; align-items:baseline; gap:18px;">
+          <span class="cockpit-brand"><span class="cockpit-brand-dot"></span>AGENTCHATTR · COCKPIT</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="pill plain">PREVIEW</span>
+          <span class="pill plain" id="cockpit-channel-label">#general</span>
+        </div>
+      </div>
+
+      <div class="cockpit-standby glass">
+        <div class="label">STANDING BY</div>
+        <h1>No active mission</h1>
+        <p>啟動一個 mission 後，這裡會變成 cockpit 上半部，顯示 crew tiles、ETA 與進度。下面的 transcript 會即時鏡像目前 channel 的訊息。</p>
+        <button type="button" disabled>New Mission · coming in Slice 2</button>
+      </div>
+
+      <div class="cockpit-transcript glass">
+        <div class="cockpit-transcript-head">
+          <span>LIVE TRANSCRIPT</span>
+          <span id="cockpit-transcript-meta">mirroring active channel</span>
+        </div>
+        <div id="cockpit-messages"></div>
+      </div>
+    </section>
+
     <div id="dropzone" class="hidden">
         <div class="dropzone-inner">Drop image here</div>
     </div>
@@ -402,5 +436,6 @@
     <script src="/static/channels.js?v=228"></script>
     <script src="/static/rules-panel.js?v=223"></script>
     <script src="/static/chat.js?v=278"></script>
+    <script src="/static/cockpit.js?v=1"></script>
 </body>
 </html>
