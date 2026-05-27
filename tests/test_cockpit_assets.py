@@ -288,3 +288,14 @@ def test_cockpit_css_post_flight():
                 ".deliv-row.fail", ".decisions-timeline", ".tl-item",
                 ".post-flight-actions", ".btn-ship"]:
         assert sel in css, f"missing post-flight component {sel}"
+
+
+def test_index_has_post_flight_markup():
+    html = _read("static/index.html")
+    assert 'class="cockpit-post-flight' in html, "missing post-flight container"
+    assert 'id="cockpit-post-flight-title"' in html
+    assert 'id="cockpit-post-flight-deliverables"' in html
+    assert 'id="cockpit-post-flight-decisions"' in html
+    assert 'id="cockpit-complete-btn"' in html
+    assert 'cockpitCompleteMission()' in html
+    assert 'cockpitDownloadReport()' in html

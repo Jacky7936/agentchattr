@@ -473,9 +473,36 @@
           <div class="meta-stat"><span class="num" id="cockpit-active-eta">—</span><span class="lbl">ETA</span></div>
           <div class="meta-stat"><span class="num" id="cockpit-active-blockers">0</span><span class="lbl">Blockers</span></div>
           <div class="meta-stat"><span class="num" id="cockpit-active-crew">0</span><span class="lbl">Crew</span></div>
+          <button id="cockpit-complete-btn" class="complete-mission-btn" type="button"
+                  onclick="cockpitCompleteMission()">Mark Complete</button>
         </div>
       </div>
       <div id="cockpit-agent-tiles"></div>
+
+      <div class="cockpit-post-flight">
+        <div class="post-flight-headline">
+          <div>
+            <div class="label">POST-FLIGHT REPORT</div>
+            <h1 id="cockpit-post-flight-title">Mission complete</h1>
+            <p class="sub" id="cockpit-post-flight-sub"></p>
+          </div>
+          <div class="post-flight-stats" id="cockpit-post-flight-stats"></div>
+        </div>
+
+        <div class="post-flight-section-head">DELIVERABLES</div>
+        <div id="cockpit-post-flight-deliverables" class="deliverables-grid"></div>
+
+        <div class="post-flight-section-head">DECISIONS TIMELINE</div>
+        <div id="cockpit-post-flight-decisions" class="decisions-timeline"></div>
+
+        <div class="post-flight-actions">
+          <div class="meta" id="cockpit-post-flight-meta">Ready to ship</div>
+          <div class="btns">
+            <button class="btn-action" type="button" onclick="cockpitArchiveMission()">Archive</button>
+            <button class="btn-action btn-ship" type="button" onclick="cockpitDownloadReport()">Accept &amp; download report</button>
+          </div>
+        </div>
+      </div>
 
       <div class="cockpit-transcript glass">
         <div class="cockpit-transcript-head">
