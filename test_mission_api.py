@@ -175,3 +175,20 @@ def test_intervene_400_for_bad_action(client):
     r = c.post(f"/api/missions/{body['id']}/intervene",
                json={"action": "explode", "agent": "codex"})
     assert r.status_code == 400
+
+
+def test_intervene_records_decision(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="dec")).json()
+    mid = body["id"]
+    c.post(f"/api/missions/{mid}/intervene",
+           json={"action": "freeze", "agent": "codex"})
+    c.post(f"/api/missions/{mid}/intervene",
+           json={"action": "redirect", "agent": "codex", "text": "do audit"})
+    mission = c.get(f"/api/missions/{mid}").json()
+    decisions = mission.get("decisions") or []
+    types = [d["type"] for d in decisions]
+    assert "intervention" in types
+    intv = [d for d in decisions if d["type"] == "intervention"]
+    assert len(intv) >= 2
+    assert all(d.get("agent") == "codex" for d in intv)

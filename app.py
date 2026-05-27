@@ -3141,6 +3141,16 @@ async def intervene_mission(mission_id: str, request: Request):
         agent=agent,
         text=text,
     )
+    if missions is not None:
+        body_text = ""
+        if action == "freeze":
+            body_text = f"human · froze {agent}"
+        elif action == "redirect":
+            body_text = f"human · redirected {agent}: {(text or '').strip()[:80]}"
+        elif action == "stop":
+            body_text = f"human · stopped {agent}"
+        missions.append_decision(mission_id, type="intervention",
+                                 agent=agent, body=body_text)
     return {"ok": True, "mission_id": mission_id, "action": action, "agent": agent}
 
 
