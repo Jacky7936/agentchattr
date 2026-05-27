@@ -3168,6 +3168,60 @@ async def complete_mission(mission_id: str):
     return updated
 
 
+@app.patch("/api/missions/{mission_id}/deliverables/{idx}")
+async def patch_deliverable(mission_id: str, idx: int, request: Request):
+    if missions is None:
+        raise HTTPException(status_code=503, detail="server not configured")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid JSON body")
+    met = bool(body.get("met", False))
+    updated = missions.set_deliverable_met(mission_id, idx, met)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="mission or deliverable not found")
+    return updated
+
+
+def _build_mission_report(mission: dict) -> dict:
+    decisions = mission.get("decisions") or []
+    interventions = [d for d in decisions if d.get("type") == "intervention"]
+    deliverables = mission.get("deliverables") or []
+    required = [d for d in deliverables if d.get("required")]
+    met = [d for d in deliverables if d.get("met")]
+    started = mission.get("started_at") or mission.get("created_at") or 0
+    completed = mission.get("completed_at") or 0
+    duration_seconds = int(completed - started) if completed and started else 0
+    return {
+        "mission_id": mission["id"],
+        "title": mission.get("title", ""),
+        "objective": mission.get("objective", ""),
+        "status": mission.get("status", ""),
+        "deliverables": deliverables,
+        "decisions": decisions,
+        "crew": mission.get("crew") or [],
+        "stats": {
+            "duration_seconds": duration_seconds,
+            "interventions": len(interventions),
+            "deliverables_total": len(deliverables),
+            "deliverables_required": len(required),
+            "deliverables_met": len(met),
+            "crew_count": len(mission.get("crew") or []),
+        },
+        "artifacts": mission.get("artifacts") or [],
+    }
+
+
+@app.get("/api/missions/{mission_id}/report")
+async def mission_report(mission_id: str):
+    if missions is None:
+        raise HTTPException(status_code=503, detail="server not configured")
+    mission = missions.get(mission_id)
+    if mission is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+    return _build_mission_report(mission)
+
+
 @app.post("/api/jobs")
 async def create_job(request: Request):
     """Create a new job."""

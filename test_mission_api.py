@@ -209,3 +209,44 @@ def test_complete_404_for_unknown(client):
     c, _ = client
     r = c.post("/api/missions/mission-999/complete")
     assert r.status_code == 404
+
+
+def test_patch_deliverable(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="d")).json()
+    mid = body["id"]
+    r = c.patch(f"/api/missions/{mid}/deliverables/0",
+                json={"met": True})
+    assert r.status_code == 200
+    m = r.json()
+    assert m["deliverables"][0]["met"] is True
+
+
+def test_patch_deliverable_404(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="d2")).json()
+    mid = body["id"]
+    r = c.patch(f"/api/missions/{mid}/deliverables/99",
+                json={"met": True})
+    assert r.status_code == 404
+
+
+def test_mission_report(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="report",
+                                                          eta_minutes=15)).json()
+    mid = body["id"]
+    c.post(f"/api/missions/{mid}/intervene",
+           json={"action": "freeze", "agent": "codex"})
+    c.post(f"/api/missions/{mid}/complete")
+    r = c.get(f"/api/missions/{mid}/report")
+    assert r.status_code == 200
+    rep = r.json()
+    assert rep["mission_id"] == mid
+    assert rep["status"] == "complete"
+    assert rep["title"] == "report"
+    assert "deliverables" in rep and len(rep["deliverables"]) >= 1
+    assert "decisions" in rep and len(rep["decisions"]) >= 1
+    assert "stats" in rep
+    assert rep["stats"]["interventions"] >= 1
+    assert rep["stats"]["crew_count"] == len(body["crew"])
