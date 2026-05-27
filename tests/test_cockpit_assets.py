@@ -154,3 +154,32 @@ def test_cockpit_js_uses_safe_dom_apis():
     # Slice 1 explicitly avoids innerHTML — see plan §Architecture for rationale.
     assert "innerHTML" not in js, \
         "cockpit.js must not use innerHTML; build DOM with createElement + textContent"
+
+
+def test_cockpit_js_hub_subscribe():
+    js = _read("static/cockpit.js")
+    assert "Hub.on" in js and "'message'" in js, \
+        "cockpit.js must subscribe to Hub 'message' events"
+    assert "cockpit-messages" in js, "must render into #cockpit-messages"
+
+
+def test_cockpit_js_renders_sender_and_text():
+    js = _read("static/cockpit.js")
+    # Sanity: the renderer touches sender, time, text fields
+    assert "msg.sender" in js or "data.sender" in js, "render must read sender"
+    assert "msg.text" in js or "data.text" in js, "render must read text"
+
+
+def test_cockpit_js_respects_active_channel():
+    js = _read("static/cockpit.js")
+    # We only render messages for the currently-viewed channel
+    assert "activeChannel" in js or "agentchattr-channel" in js, \
+        "transcript must scope to the active channel"
+
+
+def test_cockpit_js_uses_text_content():
+    js = _read("static/cockpit.js")
+    assert "textContent" in js, \
+        "renderer must use textContent for safe DOM construction"
+    assert "createElement" in js, \
+        "renderer must build elements with createElement"
