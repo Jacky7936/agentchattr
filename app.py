@@ -18,6 +18,7 @@ from store import MessageStore
 from rules import RuleStore
 from summaries import SummaryStore
 from jobs import JobStore
+from missions import MissionStore
 from schedules import ScheduleStore, parse_schedule_spec
 from router import Router
 from agents import AgentTrigger
@@ -37,6 +38,7 @@ store: MessageStore | None = None
 rules: RuleStore | None = None
 summaries: SummaryStore | None = None
 jobs: JobStore | None = None
+missions: MissionStore | None = None
 schedules: ScheduleStore | None = None
 router: Router | None = None
 agents: AgentTrigger | None = None
@@ -247,7 +249,7 @@ def _install_security_middleware(token: str, cfg: dict):
 
 
 def configure(cfg: dict, session_token: str = ""):
-    global store, rules, summaries, jobs, schedules, router, agents, registry, agent_profiles, session_store, session_engine, commander_ledger, config
+    global store, rules, summaries, jobs, missions, schedules, router, agents, registry, agent_profiles, session_store, session_engine, commander_ledger, config
     config = cfg
     # --- Security: store the session token and install middleware ---
     _install_security_middleware(session_token, cfg)
@@ -284,6 +286,9 @@ def configure(cfg: dict, session_token: str = ""):
 
     jobs = JobStore(str(jobs_path))
     jobs.on_change(_on_job_change)
+
+    missions_path = Path(data_dir) / "missions.json"
+    missions = MissionStore(str(missions_path))
 
     schedules = ScheduleStore(str(Path(data_dir) / "schedules.json"))
     schedules.on_change(_on_schedule_change)

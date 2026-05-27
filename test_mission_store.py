@@ -64,3 +64,11 @@ def test_on_change_callback_fires_on_create():
                          deliverables=[], eta_minutes=0, hop_budget=0,
                          auto_pause_blockers=0)
         assert events == [("create", m["id"])]
+
+
+def test_app_imports_mission_store():
+    """app.py must import MissionStore cleanly without breaking init."""
+    import importlib
+    mod = importlib.import_module("app")
+    assert hasattr(mod, "MissionStore"), \
+        "app.py must re-export MissionStore (verify import line near jobs)"
