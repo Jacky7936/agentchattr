@@ -138,6 +138,8 @@ def test_cockpit_js_exports_toggle():
         "cockpit.js must expose window.toggleCockpitMode"
     assert "localStorage" in js, "must persist mode via localStorage"
     assert "cockpit-active" in js, "must apply body.cockpit-active class"
+    assert "window.__cockpit" in js, \
+        "cockpit.js must expose window.__cockpit handle for Task 8 to wrap"
 
 
 def test_cockpit_js_url_param():

@@ -59,15 +59,23 @@
     }
   }
 
+  // Defer initState so any later-loaded module (e.g. Task 8) has a chance
+  // to call setApplyCockpitState before auto-activation consumes the base.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initState);
   } else {
-    initState();
+    Promise.resolve().then(initState);
   }
 
   // Expose for Task 8 to wrap.
   window.__cockpit = {
-    setApplyCockpitState(fn) { applyCockpitState = fn; },
+    setApplyCockpitState(fn) {
+      if (typeof fn !== 'function') {
+        console.error('[cockpit] setApplyCockpitState requires a function, got', typeof fn);
+        return;
+      }
+      applyCockpitState = fn;
+    },
     getApplyCockpitState() { return applyCockpitState; },
     isCockpitOn,
   };
