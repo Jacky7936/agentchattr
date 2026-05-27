@@ -206,3 +206,14 @@ def test_cockpit_css_briefing_components():
         ".go-launch",
     ]:
         assert sel in css, f"missing briefing component {sel}"
+
+
+def test_index_has_briefing_form():
+    html = _read("static/index.html")
+    assert 'cockpit-briefing-form' in html, "missing briefing form container"
+    assert 'id="cockpit-briefing-title"' in html, "missing title input"
+    assert 'id="cockpit-briefing-objective"' in html, "missing objective textarea"
+    assert 'id="cockpit-briefing-crew"' in html, "missing crew chip container"
+    assert 'id="cockpit-briefing-deliverables"' in html, "missing deliverables list"
+    assert 'id="cockpit-launch-btn"' in html, "missing launch button"
+    assert 'enterCockpitBriefing()' in html, "New Mission button not wired"
