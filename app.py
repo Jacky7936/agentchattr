@@ -3154,6 +3154,20 @@ async def intervene_mission(mission_id: str, request: Request):
     return {"ok": True, "mission_id": mission_id, "action": action, "agent": agent}
 
 
+@app.post("/api/missions/{mission_id}/complete")
+async def complete_mission(mission_id: str):
+    if missions is None:
+        raise HTTPException(status_code=503, detail="server not configured")
+    if missions.get(mission_id) is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+    updated = missions.update_status(mission_id, "complete")
+    if updated is None:
+        raise HTTPException(status_code=500, detail="failed to complete mission")
+    missions.append_decision(mission_id, type="complete", agent="",
+                             body="mission marked complete by human")
+    return updated
+
+
 @app.post("/api/jobs")
 async def create_job(request: Request):
     """Create a new job."""

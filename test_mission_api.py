@@ -192,3 +192,20 @@ def test_intervene_records_decision(client):
     intv = [d for d in decisions if d["type"] == "intervention"]
     assert len(intv) >= 2
     assert all(d.get("agent") == "codex" for d in intv)
+
+
+def test_complete_mission(client):
+    c, _ = client
+    body = c.post("/api/missions", json=_briefing_payload(title="done")).json()
+    mid = body["id"]
+    r = c.post(f"/api/missions/{mid}/complete")
+    assert r.status_code == 200
+    m = r.json()
+    assert m["status"] == "complete"
+    assert m.get("completed_at") is not None
+
+
+def test_complete_404_for_unknown(client):
+    c, _ = client
+    r = c.post("/api/missions/mission-999/complete")
+    assert r.status_code == 404
