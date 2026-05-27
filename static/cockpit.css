@@ -176,11 +176,11 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 24px 28px;
-  overflow: hidden;
-  grid-template-rows: auto auto 1fr;
+  overflow-y: auto;
+  overflow-x: hidden;
   gap: 16px;
 }
-body.cockpit-active #cockpit-mode { display: grid; }
+body.cockpit-active #cockpit-mode { display: flex; flex-direction: column; }
 body.cockpit-active #content-area,
 body.cockpit-active #channel-bar,
 body.cockpit-active #session-bar,
