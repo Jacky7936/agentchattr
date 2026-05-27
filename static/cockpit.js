@@ -180,13 +180,17 @@
     // transcript so a fresh activation isn't empty.
     try {
       document.querySelectorAll('#messages .message').forEach(function (node) {
+        // Filter by data-channel so backfill only mirrors the current channel
+        if ((node.dataset.channel || 'general') !== activeChannel()) return;
         const senderEl = node.querySelector('.msg-sender');
         const textEl = node.querySelector('.msg-text');
         const timeEl = node.querySelector('.msg-time');
         if (!senderEl || !textEl) return;
         renderCockpitMessage({
           id: node.dataset.id || '',
-          sender: senderEl.textContent || '',
+          // Use dataset.sender (raw key) so agentColor lookup works.
+          // Fall back to textContent (display name) for messages without dataset.sender.
+          sender: senderEl.dataset.sender || senderEl.textContent || '',
           text: textEl.textContent || '',
           time: timeEl ? (timeEl.textContent || '') : '',
           channel: activeChannel(),
